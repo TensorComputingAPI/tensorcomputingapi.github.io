@@ -1,0 +1,81 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Restore bullets for the main Table of Contents */
+.toctree-wrapper ul {
+    list-style-type: disc !important;
+    padding-left: 20px !important;
+}
+
+.toctree-wrapper ul ul {
+    list-style-type: circle !important;
+}
+
+.toctree-wrapper ul ul ul {
+    list-style-type: square !important;
+}
+
+/* Remove bullets for depth 4 and deeper */
+.toctree-wrapper ul ul ul ul {
+    list-style-type: none !important;
+    padding-left: 20px !important; /* Keep indentation but remove bullets */
+}
+
+/* Ensure list items display the marker */
+.toctree-wrapper li {
+    list-style: inherit !important;
+}
+
+/* Expand sidebar navigation through depth 3 by default. */
+.wy-menu-vertical li.toctree-l1 > ul,
+.wy-menu-vertical li.toctree-l2 > ul {
+    display: block;
+}
+
+/* Keep expanded non-current sidebar branches readable on the dark RTD sidebar. */
+.wy-menu-vertical > ul > li:not(.current) li.toctree-l2 > a,
+.wy-menu-vertical > ul > li:not(.current) li.toctree-l3 > a {
+    color: #b3b3b3;
+}
+
+.wy-menu-vertical > ul > li:not(.current) button.toctree-expand {
+    color: #b3b3b3;
+}
+
+.wy-menu-vertical > ul > li:not(.current) a:hover,
+.wy-menu-vertical > ul > li:not(.current) a:hover button.toctree-expand {
+    color: #ffffff;
+}
+
+/* Match RTD's current-branch indentation for forced-open sidebar branches. */
+.wy-menu-vertical > ul > li:not(.current) li.toctree-l2 > a {
+    padding: 0.4045em 2.427em;
+}
+
+.wy-menu-vertical > ul > li:not(.current) li.toctree-l3 > a {
+    padding: 0.4045em 1.618em 0.4045em 4.045em;
+}
+
+.tcapi-version-switcher {
+    margin: 0.75rem 0;
+    text-align: left;
+}
+
+.tcapi-version-switcher__label {
+    color: #d9d9d9;
+    display: block;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.tcapi-version-switcher__select {
+    background: #fcfcfc;
+    border: 1px solid #2472a4;
+    border-radius: 2px;
+    color: #404040;
+    display: block;
+    font-size: 0.9rem;
+    height: 2rem;
+    line-height: 2rem;
+    padding: 0 0.4rem;
+    width: 100%;
+}

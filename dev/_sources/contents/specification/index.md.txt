@@ -1,0 +1,3195 @@
+# Specification
+
+## Terminology
+
+### Tensor
+From a computational perspective, we regard a *tensor* as an $n$-dimensional array $A_{ijk\cdots}$ that generalizes scalars $A$ (zero-dimensional), vectors $A_i$ (one-dimensional), and matrices $A_{ij}$ (two-dimensional). The number of dimensions—equivalently, the number of indices or modes—defines the *order* of the tensor. Accordingly, a scalar is a zeroth-order tensor, a vector is a first-order tensor, and a matrix is a second-order tensor. Low-order tensors (up to third order) can be conveniently depicted as multidimensional arrays [see Fig. {numref}`%s <fig:tensor_illustration>`(a) for a third-order example]. In contrast, higher-order tensors are more naturally represented using Penrose’s graphical notation, in which a node denotes the tensor and each incident edge (or “leg”) corresponds to a tensor dimension [see Fig. {numref}`%s <fig:tensor_illustration>`(b) for a fourth-order example].
+
+```{figure} tensor_reprs.*
+:name: fig:tensor_illustration
+:align: center
+
+Graphic representations of tensors. (a) Array representation of a third-order tensor $A_{ijk}$, where the entry at coordinates $(i, j, k)$ corresponds to the tensor element $A_{i, j, k}$.  (b) Penrose diagram of a fourth-order tensor $A_{ijkl}$, in which the node represents the tensor and each incident leg corresponds to a tensor mode (bond).
+```
+
+Each mode (dimension) of the tensor array is represented by a *bond*, which appears in diagrammatic notation as a “leg” attached to the tensor node [see Fig. {numref}`%s <fig:tensor_illustration>`(b)]. A bond is characterized by its *bond index* $b$, which specifies its position in an explicit ordering of the tensor modes, and its *bond dimension* $d_b$, which gives the size of that mode. For example, a $4\times 5$ matrix can be represented as a tensor $A_{ij}$. Under zero-based indexing, the bond associated with index $j$ has bond index $b = 1$ and bond dimension $d_1 = 5$. In an abstract TN diagram, bonds are specified by connectivity rather than by array-axis order. In software, however, each bond must be mapped to a definite tensor mode. This ordering fixes the bond indices used in TCAPI, determines the tensor shape, and affects the implementation of tensor operations. For tensor networks with nontrivial exchange structure, such as fermionic or braided tensor networks, the ordering may also be tied to convention-dependent data; incorporating such structures is left for future work. The ordered list of bond dimensions, arranged according to bond indices, defines the *shape* of the tensor. For a zeroth-order tensor, the shape is an empty list. In the above example, the shape of $A$ is $(4,5)$.
+
+We refer to the entries of a tensor array as *elements*. Each element is uniquely identified by a zero-based *coordinate* tuple $\mathbf{c} = (c_0,\dots ,c_{n-1})$ and has an associated *value* $A_\mathbf{c} = A_{c_0,\dots ,c_{n-1}}$. For instance, the highlighted entry in Fig. {numref}`%s <fig:tensor_illustration>`(a) corresponds to the coordinates $\mathbf{c}=(1,2,0)$ and has value $A_{1,2,0}$. The *size* of a tensor is defined as the total number of its elements. For a zeroth-order tensor, the size is 1. Throughout this paper, we denote by $\mathbb{K}$ the scalar field from which tensor elements are drawn. In the context of TCAPI, we restrict $\mathbb{K}$ to the real field $\mathbb{R}$ or the complex field $\mathbb{C}$, while the concrete element type and precision are determined by the underlying TCF.
+
+### Tensor operations
+
+Tensor computations are performed by applying well-defined operations to tensors. These operations generalize familiar vector- and matrix-level primitives and can be broadly classified into two categories: tensor manipulation operations and tensor linear-algebra operations.
+
+#### Tensor manipulation operations
+
+This class of operations comprises tensor manipulations that act either on the structure of a tensor or independently on its individual elements. They include non-arithmetic transformations—such as bond reordering, reshaping, the combining or splitting of bonds (tensor modes), and slicing—that permute the ordering of elements or modify the tensor shape without changing element values, together with element-wise operations that preserve tensor order and shape. Below, we illustrate three representative tensor-manipulation operations shown in Fig. {numref}`%s <fig:tensor_manipulations>`. A complete list of tensor-manipulation functions supported by TCAPI is provided in Appendix {ref}`sec:tensor_manipulation`.
+
+```{figure} tensor_manipulations.*
+:name: fig:tensor_manipulations
+:align: center
+
+Typical tensor-manipulation operations. (a) Transpose, which reorders tensor bonds. (b) Concatenation, which combines multiple tensors along a specific bond. (c) Broadcasting, which applies a scalar function elementwise while preserving tensor order and shape.
+```
+
+**Transpose.** Given a permutation $\pi$ of the bond indices, the transpose operation produces a tensor $B$ whose entries satisfy
+```{math}
+    B_{i_{\pi(0)}i_{\pi(1)}\cdots i_{\pi(n-1)}} = A_{i_0 i_1 \cdots i_{n-1}}~.
+```
+This operation permutes bonds and therefore reorders tensor elements without changing their values. While the memory layout is typically altered, the underlying data remain unchanged.  Figure {numref}`%s <fig:tensor_manipulations>`(a) illustrates the specific transpose $A_{ijk} \to A_{kji}$.
+
+**Concatenation.** Tensor concatenation combines multiple tensors of the same order along a specified bond. All bonds with the same bond index must have identical dimensions across the input tensors, except for the concatenated bond. For example, concatenating three third-order tensors along bond $k$ yields a third-order tensor whose $k$-th bond dimension equals the sum of the corresponding bond dimensions of the inputs.  Figure {numref}`%s <fig:tensor_manipulations>`(b) illustrates the concatenation of three tensors into a single tensor.
+
+**Broadcasting.** Given a tensor $A\in \mathbb{K}^{d_0\times\cdots \times d_{n-1}}$ and a unary function $f:\mathbb{K} \to \mathbb{K}$, broadcasting (or entrywise mapping) defines a tensor $B = f(A)$ by
+```{math}
+    B_{i_0i_1\cdots i_{n-1}} = f(A_{i_0i_1\cdots i_{n-1}}),\quad 0\leq i_b < d_b~.
+```
+Broadcasting preserves both tensor order and shape, yielding $B\in \mathbb{K}^{d_0\times\cdots \times d_{n-1}}$.  Figure {numref}`%s <fig:tensor_manipulations>`(c) shows an example in which a scalar function $f(x)$ is applied elementwise to a third-order tensor.
+
+```{figure} tensor_linalg.*
+:name: fig:tensor_linalg
+:align: center
+
+Representative tensor linear-algebra operations. (a) Tensor contraction over shared bonds. (b) Tensor decomposition, illustrated by the SVD as a representative example.
+```
+
+#### Tensor linear-algebra operations
+
+This class comprises tensor linear-algebra operations, which generalize matrix-level primitives to higher-order tensors. Such operations typically proceed by (i) matricizing (unfolding) a tensor with respect to a chosen partition of its bonds, (ii) applying a matrix-level routine—such as multiplication, singular value decomposition, eigensolving, or linear solving—and (iii) refolding the result into tensor(s) of appropriate shape. In contrast to tensor manipulation operations, which act on tensor structure or on elements independently, tensor linear-algebra operations treat the tensor as a single coupled algebraic object. In the following, we present two representative examples: contraction and decomposition. A complete list of tensor linear-algebra operations supported by TCAPI is provided in Appendix {ref}`sec:tensor_linear_algebra`.
+
+**Contraction.** Tensor contraction is a fundamental primitive in TN applications. Let tensors $A$ and $B$ share a set of bonds $S$ with matching bond dimensions. Denoting by $I$ the ordered set of bonds $A$ not in $S$, and by $J$ the ordered set of bonds of $B$ not in $S$, contraction over the shared bonds produces a tensor $C$ with bonds $I \cup J$, whose elements are given by
+```{math}
+    C_{IJ} = \sum_{S} A_{IS}B_{SJ}~.
+```
+This expression reduces to ordinary matrix multiplication when the numbers of nonshared and shared bonds—that is, the cardinalities of the corresponding bond sets—satisfy $|I| = |J| = |S|= 1$. As a concrete example, consider tensors $A_{ijk}$ and $B_{jklm}$ sharing bonds $j$ and $k$. Their contraction yields
+```{math}
+    C_{ilm} = \sum_{j=0}^{d_j-1}\sum_{k=0}^{d_k-1} A_{ijk} B_{jklm}~,
+```
+where $d_j$ and $d_k$ denote the corresponding bond dimensions. The graphical representation of this contraction is shown in Fig. {numref}`%s <fig:tensor_linalg>`(a).
+
+**Decomposition.** Tensor decomposition is another fundamental primitive in TN applications. It extends matrix factorizations to higher-order tensors by expressing a tensor—exactly, or approximately when truncation is applied—as a contracted network of lower-order factors. As a representative example, we consider the tensor singular value decomposition (SVD). Let $A\in \mathbb{K}^{d_i\times d_j \times d_k}$ and matricize it with respect to the bipartition $\{i,j\}|\{k\}$, yielding
+```{math}
+    A' \in \mathbb{K}^{(d_i\times d_j) \times d_k},\quad A'_{pq} \equiv A_{ijk},
+```
+where the composite index $p$ corresponds to $(i,j)$ and $q$ corresponds to $k$. Performing an SVD gives $A'=U'\Sigma V^{\dagger}$, i.e.,
+```{math}
+    A'_{pq} = \sum_{l,m} U'_{pl}\Sigma_{lm}(V^\dagger)_{mq}~.
+```
+Reshaping $U'_{pl}$ to $U_{ijl}$ and identifying $V^\dagger_{mq} = V^{\dagger}_{mk}$, we obtain the tensor decomposition $A = U * \Sigma * V^{\dagger}$, where $*$ denotes tensor contraction over the internal bonds $l$ and $m$. The corresponding graphical representation is shown in Fig. {numref}`%s <fig:tensor_linalg>`(b).
+
+
+
+(sec:type_system)=
+## Type system
+
+The tensor terminology and operation semantics introduced above are shared by all TCAPI language interfaces. Each language exposes these concepts through type-system conventions appropriate to that language: the C++ interface uses compile-time tensor types and traits, while the Python interface uses runtime tensor-kind descriptors and raw backend tensor values.
+
+### C++ type system
+
+To expose a uniform interface across heterogeneous TCFs, the C++ interface relies heavily on generic programming. TCAPI therefore defines a self-contained type system for abstract tensor objects and their associated traits. Building on this foundation, TCAPI provides core tensor operations and runtime configuration variables for diagnostics and performance reporting. Unless stated otherwise, C++ classes and functions reside in the `tcapi` namespace and are expected to be accessible through the single header `tcapi/tcapi.h`.
+
+The C++ TCAPI type system consists of three components: an abstract tensor type, denoted `TenT`; a set of trait types associated with `TenT`, exposed through `tcapi::tensor_traits`; and a collection of auxiliary types.
+
+#### `TenT`
+
+`TenT` is the core abstraction in the C++ TCAPI interface. It denotes a generic, compile-time-resolved tensor type whose concrete implementation and associated types, such as element and shape types, are accessed through `tcapi::tensor_traits`. An object of type `TenT` represents a tensor through its logical tensor elements and metadata, and may manage backend resources associated with that tensor, including data storage and representation-specific metadata. These logical tensor elements need not all be stored explicitly: different objects of the same `TenT` may use dense storage or implementation-defined compact storage, such as diagonal storage. In the C++ TCAPI interface, `TenT` is not required to be copy-constructible or copy-assignable. TCAPI code that is intended to work across conforming backends must therefore not duplicate tensors by ordinary C++ copying; explicit standalone deep duplication is provided through `tcapi::copy(ctx, orig)`, which receives the backend context required to perform the copy. Ownership transfer is provided through `tcapi::move(ctx, from)`. If a backend provides ordinary C++ copy construction or copy assignment for `TenT`, those operations are implementation extensions and are not part of the portable TCAPI contract.
+
+#### `tcapi::tensor_traits`
+
+Properties intrinsically associated with `TenT` are exposed as member types of the `tcapi::tensor_traits` class template:
+
+``` cpp
+template <typename TenT>
+struct tensor_traits;
+```
+
+Table {ref}`tab:tensor_traits_member_types` lists the required member types and their roles. To ensure a uniform API across heterogeneous backends, some associations are currently constrained; for example, `tcapi::tensor_traits<TenT>::shape_t` must be `List<tcapi::tensor_traits<TenT>::bond_dim_t>`. These constraints may be relaxed in future TCAPI revisions.
+
+````{table} Member types defined in tcapi::tensor_traits\<TenT\> and their intended roles
+:name: tab:tensor_traits_member_types
+
+| **Member type** | **Description** |
+|:---|:---|
+| `ten_t` | Concrete tensor type corresponding to `TenT`. |
+| `order_t` | Integral type for the tensor order. |
+| `shape_t` | Shape type in bond-index order; `List<bond_dim_t>`. |
+| `bond_dim_t` | Integral type for a bond dimension. |
+| `bond_idx_t` | Integral type for a bond index (zero-based). |
+| `bond_label_t` | Integral type for a user-defined bond label. |
+| `ten_size_t` | Integral type for the number of tensor elements, i.e., the product of the dimensions in the tensor shape. |
+| `elem_t` | Element (value) type of `ten_t`; a real or complex floating-point type supporting arithmetic (`+`, `-`, `*`, `/`), comparisons, and common math functions via argument-dependent lookup (ADL). |
+| `elem_coor_t` | Integral type for a single coordinate along a bond (zero-based). |
+| `elem_coors_t` | Coordinate tuple type for an element; `List<elem_coor_t>` in bond-index order. |
+| `real_t` | Real scalar type; equal to `elem_t` if `elem_t` is real, otherwise the real component type of `elem_t`. |
+| `real_ten_t` | Tensor type identical to `ten_t` but with `elem_t` replaced by `real_t`. |
+| `cplx_t` | Complex scalar type; equal to `elem_t` if `elem_t` is complex, otherwise the complex counterpart of `elem_t`. |
+| `cplx_ten_t` | Tensor type identical to `ten_t` but with `elem_t` replaced by `cplx_t`. |
+| `context_handle_t` | Handle to the backend context maintained by the underlying TCF that provides `ten_t`. |
+````
+
+To streamline generic programming workflows, TCAPI provides alias templates that forward the associated types listed in Tab. {ref}`tab:tensor_traits_member_types` from `tcapi::tensor_traits`:
+
+``` cpp
+template <typename TenT>
+using target_type =
+typename tensor_traits<TenT>::target_type;
+```
+
+Here, `target_type` represents any required associated types (e.g., `order_t`, `shape_t`, or `elem_t`); these aliases eliminate repetitive boilerplate of the form `typename tensor_traits<TenT>::...`, so a function template that processes a single element can be written as
+
+``` cpp
+template <typename TenT>
+void process_element(
+    const tcapi::elem_t<TenT> el
+);
+```
+
+(sec:aux_types)=
+#### Auxiliary types
+
+In addition to the associated types described above, TCAPI defines a set of auxiliary types. These types are used both to construct the member types listed in Tab. {ref}`tab:tensor_traits_member_types` and as parameter or argument types for the core functions introduced in Sec. {ref}`sec:functions`. All auxiliary types are summarized in Tab. {ref}`tab:auxiliary_types`.
+
+For notational convenience in Sec. {ref}`sec:functions`, we introduce two implementation-level aliases: `bond_idx_pairs_t<TenT>`, defined as an alias for `List<Pair<tcapi::bond_idx_t<TenT>, tcapi::bond_idx_t<TenT>>>`, and `bond_idx_elem_coor_pair_map<TenT>`, defined as an alias for `Map<tcapi::bond_idx_t<TenT>, Pair<tcapi::elem_coor_t<TenT>, tcapi::elem_coor_t<TenT>>>`.  These aliases are intended solely for internal specification purposes.  They are not part of the formal TCAPI specification and are therefore not exported in the `tcapi` namespace.
+
+```{table} Auxiliary types defined in TCAPI and their intended roles
+:name: tab:auxiliary_types
+
+| **Auxiliary type** | **Description** |
+|:---|:---|
+| `List<T>` | Sequence container of values of type `T`; alias of `std::vector<T>`. |
+| `CRef<T>` | Non-owning const reference to an object of type `T`; alias of `std::reference_wrapper<const T>`. |
+| `Pair<T, U>` | Pair of values of types `T` and `U`; alias of `std::pair<T,U>`. |
+| `Map<T, U>` | Associative container mapping `T` $\to$ `U`; alias of `std::unordered_map<T,U>`. |
+```
+
+### Python type system
+
+Python TCAPI exposes tensor types through a runtime descriptor called `TenKind`. A `TenKind` is the Python analogue of the C++ tensor type `TenT`: it identifies a family of backend-native tensor values and carries the type information needed by TCAPI functions. A `TenKind` is not itself a tensor object, and Python TCAPI does not wrap returned tensors in TCAPI-defined tensor classes. Instead, Python TCAPI functions return backend-native tensors. A `TenKind` identifies the backend tensor family and element type, not a particular storage representation. Dense and diagonal tensors of the same backend family and dtype therefore have the same `TenKind`.
+
+The required metadata fields associated with a `TenKind` mirror the C++ traits in `tcapi::tensor_traits<TenT>`:
+
+~~~{table} Metadata associated with a Python `TenKind` and their intended roles
+:name: tab:python_ten_kind_metadata
+
+| **Metadata** | **Description** |
+|:---|:---|
+| `ten_type` | Raw backend tensor class returned by TCAPI functions. |
+| `dtype` | Backend-native dtype of elements; Python analogue of `tcapi::elem_t<TenT>`. |
+| `real_dtype` | Backend-native real dtype; Python analogue of `tcapi::real_t<TenT>`. |
+| `cplx_dtype` | Backend-native complex dtype; Python analogue of `tcapi::cplx_t<TenT>`. |
+| `real_ten_kind` | Tensor kind corresponding to `tcapi::real_ten_t<TenT>`. |
+| `cplx_ten_kind` | Tensor kind corresponding to `tcapi::cplx_ten_t<TenT>`. |
+~~~
+
+Concrete `TenKind` objects are provided and documented by each TCAPI implementation.
+
+Python TCAPI provides the following ten-kind introspection functions:
+
+``` python
+tcapi.ten_kind_ten_type(TenKind)
+tcapi.ten_kind_dtype(TenKind)
+tcapi.ten_kind_real_dtype(TenKind)
+tcapi.ten_kind_cplx_dtype(TenKind)
+
+tcapi.real_ten_kind(TenKind)
+tcapi.cplx_ten_kind(TenKind)
+
+tcapi.ten_kind(ctx, tensor)
+```
+
+Here, `TenKind` denotes any Python tensor-kind descriptor. The function `tcapi.ten_kind(ctx, tensor)` returns the `TenKind` associated with a raw backend tensor in the context `ctx`.
+
+A Python TCAPI context is an implementation-defined runtime handle passed to context-dependent TCAPI operations, usually as the first argument. Its creation and destruction are specified by `tcapi.create_context` and `tcapi.destroy_context`.
+
+#### Auxiliary types and values
+
+Python TCAPI does not prescribe dedicated container classes for shapes, coordinates, bond indices, or bond labels. Instead, it uses ordinary Python sequences, such as tuples, lists, or implementation-defined sequence-like objects accepted by the backend.
+
+Tensor shapes and coordinate tuples are Python sequences of nonnegative integers in bond-index order. Bond indices are Python integers, while bond-index lists and bond-label lists are Python sequences of integers. String labels are accepted by operations that define a string-label API.
+
+Element values and scalar return values are represented by ordinary Python scalar values or by backend-native scalar values consistent with the relevant `TenKind`.
+
+(sec:functions)=
+## Core functions
+
+Building on the type system described above, TCAPI exposes a suite of core functions that cover the most common tensor operations. Operation semantics are shared across language interfaces, while each language exposes them through its own signatures and calling conventions. These functions are organized into six categories: (i) **Read-only queries**, which provide access to tensor metadata and single-element values (e.g., order, shape, and element lookup); (ii) **Construction and destruction** routines, which allocate, initialize, and release tensor storage; (iii) **Input/output (I/O)** facilities for loading tensors from and saving tensors to the file system; (iv) **Tensor manipulation** operations, such as reshaping, transposition, and concatenation; (v) **Tensor linear-algebra** operations, including contractions and decompositions; and (vi) **Miscellaneous routines**, which provide auxiliary functionality that is not performance critical, such as pretty-printing for debugging.
+
+TCAPI represents scalar-valued tensor results as backend tensor objects rather than standalone scalar values. A zeroth-order tensor has empty shape, size 1, and a single empty coordinate sequence. Its sole element is read with `get_elem` and updated with `set_elem` using that empty coordinate sequence. In the examples below, this sequence is written as `{}` in C++ and `()` in Python. Operations whose definitions require selecting, reordering, inserting, removing, slicing, or partitioning existing bonds are not applicable to zeroth-order tensors unless explicitly specified by the operation.
+
+In the C++ interface, many TCAPI routines are available in both in-place and out-of-place variants. In-place variants mutate the supplied tensor operand(s), whereas out-of-place variants leave all inputs unmodified and return the results either as a function return value for single-tensor outputs or via designated output parameters for multi-tensor outputs or when return-value usage would lead to name collisions.
+
+In the Python interface, context-dependent tensor operations generally use the procedural form `tcapi.function(ctx, ...)`. Routines that do not require an existing context, such as tensor-kind introspection and context creation or query routines, use their individually specified signatures. Tensor-producing operations return raw backend tensors, multi-output operations return tuples, and constructor or loader functions that require a target tensor kind take a `TenKind` argument. Python TCAPI does not use C++-style output arguments; users update tensor variables through normal Python rebinding. In the Python signature blocks below, calls are shown without assignment; the accompanying text specifies the return value of each call, such as a tensor, a tuple, a scalar, or no value, and the examples show any required assignment or rebinding.
+
+TCAPI treats a diagonal tensor as an ordinary second-order tensor with shape $\{N,N\}$ whose off-diagonal logical tensor elements are zero. Diagonal tensors have the same public tensor type or tensor kind as other tensors with the same backend family and element type; implementations may store them compactly or densely. Unless stated otherwise, TCAPI operations are defined by logical tensor elements, not by storage representation.
+
+For each function, we provide a minimal usage example following the function signature and description. Throughout the examples, `Ten` denotes either a C++ tensor type or a Python `TenKind` with 32-bit real floating-point elements, and `CplxTen` denotes its complex counterpart. In C++, this means a concrete tensor type with element type `float`; in Python, this means an implementation-provided `TenKind` with a backend-native 32-bit real floating-point `dtype`.
+
+### Read-only queries
+
+This subsection specifies read-only query functions provided by TCAPI, which retrieve tensor metadata and individual elements without modifying the tensor.
+
+#### `order`
+
+C++:
+
+```cpp
+template <typename TenT>
+tcapi::order_t<TenT> order(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a
+);
+```
+
+Python:
+
+```python
+tcapi.order(ctx, a)
+```
+
+Return the order of `a`, i.e., the number of bonds (dimensions). For a zeroth-order tensor, this function returns 0. In the Python interface, the returned value is an integer-like value.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// a is a 3rd-order tensor
+auto ord = tcapi::order(ctx, a);
+// ord == 3
+```
+
+Python:
+
+```python
+# a is a 3rd-order tensor
+ord = tcapi.order(ctx, a)
+# ord == 3
+```
+````
+
+#### `shape`
+
+C++:
+
+```cpp
+template <typename TenT>
+tcapi::shape_t<TenT> shape(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a
+);
+```
+
+Python:
+
+```python
+tcapi.shape(ctx, a)
+```
+
+Return the shape (the bond dimensions) of `a`, listed in bond-index order. For a zeroth-order tensor, this function returns the empty shape, i.e., the empty sequence of bond dimensions. In the Python interface, the returned value is a sequence of integer-like values.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// a is a 3rd-order tensor
+// with the shape {3, 4, 2}
+auto s = tcapi::shape(ctx, a);
+// s[0] == 3; s[1] == 4; s[2] == 2
+```
+
+Python:
+
+```python
+# a is a 3rd-order tensor
+# with the shape (3, 4, 2)
+s = tcapi.shape(ctx, a)
+# s[0] == 3; s[1] == 4; s[2] == 2
+```
+````
+
+#### `size`
+
+C++:
+
+```cpp
+template <typename TenT>
+tcapi::ten_size_t<TenT> size(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a
+);
+```
+
+Python:
+
+```python
+tcapi.size(ctx, a)
+```
+
+Return the total number of tensor elements in `a`. For a zeroth-order tensor, this function returns 1. For a diagonal tensor with shape $\{N,N\}$, this value is $N^2$, independent of whether the tensor is stored compactly. In the C++ interface, this is consistent with the semantics of `std::size`. In the Python interface, the returned value is an integer-like value.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// a is a 3rd-order tensor
+// with the shape {3, 4, 2}
+auto n = tcapi::size(ctx, a);
+// n == 24
+```
+
+Python:
+
+```python
+# a is a 3rd-order tensor
+# with the shape (3, 4, 2)
+n = tcapi.size(ctx, a)
+# n == 24
+```
+````
+
+#### `size_bytes`
+
+C++:
+
+```cpp
+template <typename TenT>
+std::size_t size_bytes(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a
+);
+```
+
+Python:
+
+```python
+tcapi.size_bytes(ctx, a)
+```
+
+Return the physical memory footprint of `a` in bytes. A compactly stored diagonal tensor may use fewer bytes than a dense tensor with the same shape. In the Python interface, the returned value is an integer-like value.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// a is a 3rd-order float32 tensor
+// with the shape {3, 4, 2}
+auto bytes = tcapi::size_bytes(ctx, a);
+// bytes == 96
+```
+
+Python:
+
+```python
+# a is a 3rd-order float32 tensor
+# with the shape (3, 4, 2)
+num_bytes = tcapi.size_bytes(ctx, a)
+# num_bytes == 96
+```
+````
+
+#### `get_elem`
+
+C++:
+
+```cpp
+template <typename TenT>
+tcapi::elem_t<TenT> get_elem(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::elem_coors_t<TenT> &coors
+);
+```
+
+Python:
+
+```python
+tcapi.get_elem(ctx, a, coors)
+```
+
+Return the element value of `a` at the zero-based coordinate tuple `coors`, specified in bond-index order. For a zeroth-order tensor, `coors` is the empty coordinate sequence, and the function returns the sole element. For a diagonal tensor, off-diagonal elements return zero. In the Python interface, `coors` is a Python sequence, and the returned value is a scalar value consistent with the relevant `TenKind`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// a is a 3-by-3 identity matrix
+auto v = tcapi::get_elem(ctx, a, {1, 1});
+// v == 1.0
+v = tcapi::get_elem(ctx, a, {0, 1});
+// v == 0.0
+```
+
+Python:
+
+```python
+# a is a 3-by-3 identity matrix
+v = tcapi.get_elem(ctx, a, (1, 1))
+# v == 1.0
+v = tcapi.get_elem(ctx, a, (0, 1))
+# v == 0.0
+```
+````
+
+### Construction and destruction
+
+This subsection specifies core routines for allocating, initializing, copying, moving, and releasing tensor objects. In the Python interface, constructors that create a tensor of a specified kind take a `TenKind` argument and return raw backend tensors. C++-specific ownership routines that do not have a Python analogue are identified explicitly.
+
+#### `allocate`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT allocate(
+    tcapi::context_handle_t<TenT> &ctx,
+    const tcapi::shape_t<TenT> &shape
+);
+```
+
+Python:
+
+```python
+tcapi.allocate(ctx, Ten, shape)
+```
+
+Allocate and return a tensor with the specified shape `shape`. The empty shape is valid; in that case, the function returns a zeroth-order tensor whose sole element is uninitialized. Storage is allocated, but tensor elements are intentionally left *uninitialized* to avoid initialization overhead. Consequently, element values are indeterminate until they are explicitly assigned. In the Python interface, `Ten` is a `TenKind`, `shape` is a Python sequence, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::allocate<Ten>(ctx, {3, 4, 2});
+auto v = tcapi::get_elem(ctx, a, {0, 2, 1});
+// the value of v is indeterminate
+```
+
+Python:
+
+```python
+a = tcapi.allocate(ctx, Ten, (3, 4, 2))
+v = tcapi.get_elem(ctx, a, (0, 2, 1))
+# the value of v is indeterminate
+```
+````
+
+#### `zeros`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT zeros(
+    tcapi::context_handle_t<TenT> &ctx,
+    const tcapi::shape_t<TenT> &shape
+);
+```
+
+Python:
+
+```python
+tcapi.zeros(ctx, Ten, shape)
+```
+
+Allocate and return a tensor of shape `shape` with all elements initialized to zero. The empty shape is valid; in that case, the function returns a zeroth-order tensor whose sole element is initialized to zero. In the Python interface, `Ten` is a `TenKind`, `shape` is a Python sequence, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::zeros<Ten>(ctx, {3, 4, 2});
+auto v = tcapi::get_elem(ctx, a, {0, 2, 1});
+// v == 0.0
+```
+
+Python:
+
+```python
+a = tcapi.zeros(ctx, Ten, (3, 4, 2))
+v = tcapi.get_elem(ctx, a, (0, 2, 1))
+# v == 0.0
+```
+````
+
+#### `assign_from_range`
+
+C++:
+
+```cpp
+template <typename TenT,
+          typename RandomIt,
+          typename Func>
+TenT assign_from_range(
+    tcapi::context_handle_t<TenT> &ctx,
+    const tcapi::shape_t<TenT> &shape,
+    RandomIt first,
+    Func &&coors2idx
+);
+```
+
+Python:
+
+```python
+tcapi.assign_from_range(
+    ctx, Ten, shape, values, coors2idx
+)
+```
+
+Construct and return a tensor of shape `shape` by assigning its elements from an input range. In C++, the range is a random-access range starting at `first`; in Python, it is the sequence `values`. The element at coordinate tuple `coors` is initialized as `*(first + coors2idx(coors))` in C++ or `values[coors2idx(coors)]` in Python. The empty shape is valid; in that case, the function returns a zeroth-order tensor and invokes the coordinate-to-index map once with the empty coordinate sequence.
+
+In the Python interface, `Ten` is a `TenKind`, `shape` is a Python sequence, `values` is a Python sequence, `coors2idx` is a callable, and the returned value is a raw backend tensor. In C++, the mapping function `coors2idx` must have the signature
+
+```cpp
+std::iterator_traits<
+        RandomIt
+>::difference_type coors2idx(
+    const tcapi::elem_coors_t<TenT> &coors
+);
+```
+
+and must map valid coordinate tuples to zero-based indices in the range.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+using Elem = tcapi::elem_t<Ten>;
+using ElemVec = std::vector<Elem>;
+std::iterator_traits<
+    typename ElemVec::iterator
+>::difference_type coors2idx(
+    const tcapi::elem_coors_t<Ten> &coors
+) {
+  return 3 * coors[0] + coors[1];
+}
+ElemVec els {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+auto a = tcapi::assign_from_range<Ten>(
+    ctx, {2, 3}, els.begin(), coors2idx
+);
+auto el = tcapi::get_elem(ctx, a, {1, 1});
+// el == 5.0
+```
+
+Python:
+
+```python
+def coors2idx(coors):
+    return 3 * coors[0] + coors[1]
+
+values = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+a = tcapi.assign_from_range(
+    ctx, Ten, (2, 3), values, coors2idx
+)
+el = tcapi.get_elem(ctx, a, (1, 1))
+# el == 5.0
+```
+````
+
+#### `random`
+
+C++:
+
+```cpp
+template <typename TenT, typename RandNumGen>
+TenT random(
+    tcapi::context_handle_t<TenT> &ctx,
+    const tcapi::shape_t<TenT> &shape,
+    RandNumGen &gen
+);
+```
+
+Python:
+
+```python
+tcapi.random(ctx, Ten, shape, gen)
+```
+
+Construct and return a tensor of shape `shape` whose elements are generated by repeatedly invoking the random number generator `gen`. The empty shape is valid; in that case, the function returns a zeroth-order tensor and invokes the random-number generator once. Each call to `gen()` must return a value convertible to `tcapi::elem_t<TenT>` in C++ or consistent with `tcapi.ten_kind_dtype(Ten)` in the Python interface. In the Python interface, `Ten` is a `TenKind`, `shape` is a Python sequence, `gen` is a callable, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+std::mt19937 engine;
+std::uniform_real_distribution<float> dis(
+  0.0, 1.0
+);
+auto gen = [&dis, &engine]() {
+  return dis(engine);
+};
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 2}, gen
+);
+auto el = tcapi::get_elem(ctx, a, {1, 2, 0});
+// el is generated by gen and lies in [0.0, 1.0)
+```
+
+Python:
+
+```python
+import random
+
+def gen():
+    return random.random()
+
+a = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+el = tcapi.get_elem(ctx, a, (1, 2, 0))
+# el is generated by gen and lies in [0.0, 1.0)
+```
+````
+
+#### `eye`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT eye(
+    tcapi::context_handle_t<TenT> &ctx,
+    const tcapi::bond_dim_t<TenT> N
+);
+```
+
+Python:
+
+```python
+tcapi.eye(ctx, Ten, N)
+```
+
+Construct and return the $N \times N$ identity tensor as a diagonal tensor, with ones on the main diagonal and zeros elsewhere. Implementations may store the result compactly when supported by the underlying TCF. In the Python interface, `Ten` is a `TenKind`, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+auto el = tcapi::get_elem(ctx, a, {1, 1});
+// el == 1.0
+el = tcapi::get_elem(ctx, a, {1, 2});
+// el == 0.0
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+el = tcapi.get_elem(ctx, a, (1, 1))
+# el == 1.0
+el = tcapi.get_elem(ctx, a, (1, 2))
+# el == 0.0
+```
+````
+
+#### `fill`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT fill(
+    tcapi::context_handle_t<TenT> &ctx,
+    const tcapi::shape_t<TenT> &shape,
+    const tcapi::elem_t<TenT> v
+);
+```
+
+Python:
+
+```python
+tcapi.fill(ctx, Ten, shape, v)
+```
+
+Construct and return a tensor of shape `shape` with all elements initialized to `v`. The empty shape is valid; in that case, the function returns a zeroth-order tensor whose sole element is initialized to `v`. In the Python interface, `Ten` is a `TenKind`, `shape` is a Python sequence, `v` is a scalar value consistent with `tcapi.ten_kind_dtype(Ten)`, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::fill<Ten>(ctx, {3, 2, 4}, 2.0);
+auto el = tcapi::get_elem(ctx, a, {0, 1, 3});
+// el == 2.0
+```
+
+Python:
+
+```python
+a = tcapi.fill(ctx, Ten, (3, 2, 4), 2.0)
+el = tcapi.get_elem(ctx, a, (0, 1, 3))
+# el == 2.0
+```
+````
+
+#### `copy`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT copy(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &orig
+);
+```
+
+Python:
+
+```python
+tcapi.copy(ctx, orig)
+```
+
+Construct and return a *deep* copy of `orig`. The returned tensor has the same shape and element values as `orig`, and the two tensors do not share memory. In the Python interface, the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+Ten a;
+// perform operations on a
+auto b = tcapi::copy(ctx, a);
+// b == a
+```
+
+Python:
+
+```python
+a = tcapi.zeros(ctx, Ten, (3, 4, 2))
+# perform operations on a
+b = tcapi.copy(ctx, a)
+# b has the same shape and element values as a
+```
+````
+
+#### `move`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT move(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &from
+);
+```
+
+Python:
+
+No Python interface is specified for `move`.
+
+Transfer the data storage and metadata owned by `from` to a newly returned tensor. No deep copy is performed. Upon return, `from` is placed in a valid, default-constructed state (`TenT{}`). This is a C++ ownership utility; Python tensor lifetime and ownership follow normal Python and backend-library semantics.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+Ten a;
+// perform operations on a
+auto a_cpy = tcapi::copy(ctx, a);
+auto b = tcapi::move(ctx, a);
+// b == a_cpy
+// a == Ten{}
+```
+````
+
+#### `clear`
+
+C++:
+
+```cpp
+template <typename TenT>
+void clear(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &a
+);
+```
+
+Python:
+
+No Python interface is specified for `clear`.
+
+Reset `a` to an empty, default-constructed state, releasing its data storage and associated metadata. Upon return, `a == TenT{}`. This is a C++ ownership utility; Python tensor lifetime and ownership follow normal Python and backend-library semantics.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+Ten a;
+// perform operations on a
+tcapi::clear(ctx, a);
+// a == Ten{}
+```
+````
+
+### Input and output (I/O)
+
+This subsection specifies routines for serializing tensors to persistent storage and deserializing them into memory.
+
+#### `load`
+
+C++:
+
+```cpp
+template <typename TenT, typename Storage>
+TenT load(
+    tcapi::context_handle_t<TenT> &ctx,
+    Storage &&strg
+);
+```
+
+Python:
+
+```python
+tcapi.load(ctx, Ten, strg)
+```
+
+Deserialize a tensor from the storage location identified by `strg` and return it. In C++, the type of `strg` is represented by the template parameter `Storage`; in Python, `strg` denotes a path-like or handle-like object that identifies a file on the host file system. C++ implementations are required to accept string-like inputs, such as `std::string`, `std::string_view`, or `const char*`, and may additionally support `std::filesystem::path` or other storage abstractions. Python implementations are required to accept string-like inputs, such as `str`, and may additionally support `pathlib.Path` or other storage abstractions. In the Python interface, `Ten` is a `TenKind`, and the returned value is a raw backend tensor. The on-disk format is backend-defined and must be compatible with the requested tensor kind and the execution context `ctx`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// ./a.ten is a file on disk
+// containing the serialized representation of a Ten tensor
+auto a = tcapi::load<Ten>(ctx, "./a.ten");
+```
+
+Python:
+
+```python
+# ./a.ten is a file on disk
+# containing the serialized representation of a tensor compatible with Ten
+a = tcapi.load(ctx, Ten, "./a.ten")
+```
+````
+
+#### `save`
+
+C++:
+
+```cpp
+template <typename TenT, typename Storage>
+void save(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    Storage &&strg
+);
+```
+
+Python:
+
+```python
+tcapi.save(ctx, a, strg)
+```
+
+Serialize the tensor `a` and write it to the storage location identified by `strg`. In C++, the type of `strg` is represented by the template parameter `Storage`; in Python, `strg` denotes a path-like or handle-like object that identifies a file on the host file system. C++ implementations are required to accept string-like inputs, such as `std::string`, `std::string_view`, or `const char*`, and may additionally support `std::filesystem::path` or other storage abstractions. Python implementations are required to accept string-like inputs, such as `str`, and may additionally support `pathlib.Path` or other storage abstractions. This function is the counterpart to `load`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+Ten a;
+// do some operations on a
+tcapi::save(ctx, a, "./a.ten");
+// the file "./a.ten" is created on disk
+```
+
+Python:
+
+```python
+a = tcapi.zeros(ctx, Ten, (3, 4, 2))
+# do some operations on a
+tcapi.save(ctx, a, "./a.ten")
+# the file "./a.ten" is created on disk
+```
+````
+
+(sec:tensor_manipulation)=
+### Tensor manipulation operations
+
+This subsection specifies tensor-manipulation routines that operate on tensor structure or elementwise values without invoking tensor linear algebra. In the Python interface, manipulation routines that create or update tensors return raw backend tensors, so users update tensor variables by normal Python rebinding. Unless otherwise stated, TCAPI tensor-manipulation routines operate on tensor elements rather than stored elements. Implementations may preserve diagonal storage when the result remains diagonal and may densify when the result cannot be represented as a diagonal tensor.
+
+#### `set_elem`
+
+C++:
+
+```cpp
+template <typename TenT>
+void set_elem(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &a,
+    const tcapi::elem_coors_t<TenT> &coors,
+    const tcapi::elem_t<TenT> el
+);
+```
+
+Python:
+
+```python
+tcapi.set_elem(ctx, a, coors, el)
+```
+
+Assign the value `el` to the element at coordinates `coors`. For a zeroth-order tensor, `coors` is the empty coordinate sequence, and the function updates the sole element. In the C++ interface, this operation updates `a` in place. In the Python interface, `coors` is a Python sequence, `el` is a scalar value consistent with the relevant `TenKind`, and the returned value is a raw backend tensor with the specified element updated.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::zeros<Ten>(ctx, {3, 4, 2});
+tcapi::set_elem(ctx, a, {2, 1, 0}, 1.0);
+auto v = tcapi::get_elem(ctx, a, {2, 1, 0});
+// v == 1.0
+```
+
+Python:
+
+```python
+a = tcapi.zeros(ctx, Ten, (3, 4, 2))
+a = tcapi.set_elem(ctx, a, (2, 1, 0), 1.0)
+v = tcapi.get_elem(ctx, a, (2, 1, 0))
+# v == 1.0
+```
+````
+
+#### `reshape`
+
+C++:
+
+```cpp
+template <typename TenT>
+void reshape(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const tcapi::shape_t<TenT> &new_shape
+);                                      // (1)
+
+template <typename TenT>
+void reshape(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const tcapi::shape_t<TenT> &new_shape,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.reshape(ctx, a, new_shape)
+```
+
+Reshape a tensor to `new_shape`, with the total number of logical tensor elements unchanged. This operation also converts between the empty shape and any shape with total size 1, such as $\{1\}$ or $\{1,1\}$, because the number of logical elements is preserved. No element reordering, transposition, or value modification occurs; the linear order of logical tensor elements is preserved. For densely stored tensors, this operation may be implemented by modifying only shape metadata. For diagonal tensors or other compact storage formats, the same logical-element semantics apply; implementations may preserve compact storage when possible or densify the tensor when the reshaped result is no longer representable compactly. The operation also covers combining consecutive bonds into a composite bond or splitting a bond into several bonds, with the relevant dimensions multiplying to the same value; nonconsecutive bonds can first be made consecutive by `transpose` before reshaping. In the C++ interface, (1) reshapes `inout` in place and (2) reads from `in` and writes the reshaped tensor into `out`. In the Python interface, `new_shape` is a Python sequence, and the returned value is a raw backend tensor with the requested shape.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::zeros<Ten>(ctx, {3, 4, 2});
+tcapi::reshape(ctx, a, {4, 2, 3});
+auto s = tcapi::shape(ctx, a);
+// s == {4, 2, 3}
+
+Ten b;
+tcapi::reshape(ctx, a, {2, 3, 4}, b);
+auto sb = tcapi::shape(ctx, b);
+// sb == {2, 3, 4}
+```
+
+Python:
+
+```python
+a = tcapi.zeros(ctx, Ten, (3, 4, 2))
+a = tcapi.reshape(ctx, a, (4, 2, 3))
+s = tcapi.shape(ctx, a)
+# s == (4, 2, 3)
+
+b = tcapi.reshape(ctx, a, (2, 3, 4))
+sb = tcapi.shape(ctx, b)
+# sb == (2, 3, 4)
+```
+````
+
+#### `transpose`
+
+C++:
+
+```cpp
+template <typename TenT>
+void transpose(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const List<
+        tcapi::bond_idx_t<TenT>
+    > &new_order
+);                                      // (1)
+
+template <typename TenT>
+void transpose(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const List<
+        tcapi::bond_idx_t<TenT>
+    > &new_order,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.transpose(ctx, a, new_order)
+```
+
+Permute tensor bonds according to the permutation `new_order`. Element values are preserved; only their coordinates are permuted (the memory layout may also change). In the C++ interface, (1) applies the permutation to `inout` in place and (2) reads from `in` and writes the permuted tensor into `out`. In the Python interface, `new_order` is a Python sequence of bond indices, and the returned value is a raw backend tensor with the permuted bonds.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 2, 4}, gen
+);
+auto el1 = tcapi::get_elem(ctx, a, {1, 0, 0});
+tcapi::transpose(ctx, a, {1, 0, 2});
+auto el2 = tcapi::get_elem(ctx, a, {0, 1, 0});
+// el1 == el2
+
+Ten b;
+tcapi::transpose(ctx, a, {2, 1, 0}, b);
+auto sb = tcapi::shape(ctx, b);
+// sb == {4, 3, 2}
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 2, 4), gen)
+el1 = tcapi.get_elem(ctx, a, (1, 0, 0))
+a = tcapi.transpose(ctx, a, (1, 0, 2))
+el2 = tcapi.get_elem(ctx, a, (0, 1, 0))
+# el1 == el2
+
+b = tcapi.transpose(ctx, a, (2, 1, 0))
+sb = tcapi.shape(ctx, b)
+# sb == (4, 3, 2)
+```
+````
+
+#### `cplx_conj`
+
+C++:
+
+```cpp
+template <typename TenT>
+void cplx_conj(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout
+);                                      // (1)
+
+template <typename TenT>
+void cplx_conj(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.cplx_conj(ctx, a)
+```
+
+Apply elementwise complex conjugation. In the C++ interface, (1) conjugates `inout` in place and (2) conjugates `in` and writes the result into `out`. If `tcapi::elem_t<TenT>` is real, (1) performs no change and (2) produces a deep copy. In the Python interface, the returned value is a raw backend tensor; for a real-valued input, the result has the same shape and element values as `a`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<CplxTen>(
+    ctx, {3, 2, 4}, gen
+);
+CplxTen a_conj;
+tcapi::cplx_conj(ctx, a, a_conj);
+auto el1 = tcapi::get_elem(ctx, a, {0, 0, 0});
+auto el2 = tcapi::get_elem(
+  ctx, a_conj, {0, 0, 0}
+);
+// std::conj(el1) == el2
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, CplxTen, (3, 2, 4), gen)
+a_conj = tcapi.cplx_conj(ctx, a)
+el1 = tcapi.get_elem(ctx, a, (0, 0, 0))
+el2 = tcapi.get_elem(ctx, a_conj, (0, 0, 0))
+# conjugate(el1) == el2
+```
+````
+
+#### `to_cplx`
+
+C++:
+
+```cpp
+template <typename TenT>
+tcapi::cplx_ten_t<TenT> to_cplx(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in
+);
+```
+
+Python:
+
+```python
+tcapi.to_cplx(ctx, a)
+```
+
+Return a complex-valued tensor with the same shape as `in`. Real-valued elements are embedded as complex numbers with zero imaginary parts. If `tcapi::elem_t<TenT>` is already complex, the function returns a deep copy of `in`. In the Python interface, the returned value is a raw backend tensor whose `TenKind` is the complex counterpart of `tcapi.ten_kind(ctx, a)`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+auto cplx_a = tcapi::to_cplx(ctx, a);
+auto el = tcapi::get_elem(ctx, cplx_a, {1, 1});
+// el == 1.0 + 0.0j
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+cplx_a = tcapi.to_cplx(ctx, a)
+el = tcapi.get_elem(ctx, cplx_a, (1, 1))
+# el == 1.0 + 0.0j
+```
+````
+
+#### `real`
+
+C++:
+
+```cpp
+template <typename TenT>
+tcapi::real_ten_t<TenT> real(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in
+);
+```
+
+Python:
+
+```python
+tcapi.real(ctx, a)
+```
+
+Extract the real part of `in` elementwise and return a tensor with a real-valued element type. If `tcapi::elem_t<TenT>` is already real, this function returns a deep copy of `in`. In the Python interface, the returned value is a raw backend tensor whose `TenKind` is the real counterpart of `tcapi.ten_kind(ctx, a)`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<CplxTen>(
+    ctx, {3, 2, 4}, gen
+);
+auto a_real = tcapi::real(ctx, a);
+auto el1 = tcapi::get_elem(ctx, a, {0, 0, 0});
+auto el2 = tcapi::get_elem(
+  ctx, a_real, {0, 0, 0}
+);
+// std::real(el1) == el2
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, CplxTen, (3, 2, 4), gen)
+a_real = tcapi.real(ctx, a)
+el1 = tcapi.get_elem(ctx, a, (0, 0, 0))
+el2 = tcapi.get_elem(ctx, a_real, (0, 0, 0))
+# real(el1) == el2
+```
+````
+
+#### `imag`
+
+C++:
+
+```cpp
+template <typename TenT>
+tcapi::real_ten_t<TenT> imag(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in
+);
+```
+
+Python:
+
+```python
+tcapi.imag(ctx, a)
+```
+
+Extract the imaginary part of `in` elementwise and return a tensor with a real-valued element type. If `tcapi::elem_t<TenT>` is already real, the function returns a real-valued tensor of the same shape whose elements are all zero. In the Python interface, the returned value is a raw backend tensor whose `TenKind` is the real counterpart of `tcapi.ten_kind(ctx, a)`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<CplxTen>(
+    ctx, {3, 2, 4}, gen
+);
+auto a_imag = tcapi::imag(ctx, a);
+auto el1 = tcapi::get_elem(ctx, a, {0, 0, 0});
+auto el2 = tcapi::get_elem(
+  ctx, a_imag, {0, 0, 0}
+);
+// std::imag(el1) == el2
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, CplxTen, (3, 2, 4), gen)
+a_imag = tcapi.imag(ctx, a)
+el1 = tcapi.get_elem(ctx, a, (0, 0, 0))
+el2 = tcapi.get_elem(ctx, a_imag, (0, 0, 0))
+# imag(el1) == el2
+```
+````
+
+#### `expand`
+
+C++:
+
+```cpp
+template <typename TenT>
+void expand(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const Map<
+        tcapi::bond_idx_t<TenT>,
+        tcapi::bond_dim_t<TenT>
+        > &bond_idx_increment_map
+);                                      // (1)
+
+template <typename TenT>
+void expand(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const Map<
+        tcapi::bond_idx_t<TenT>,
+        tcapi::bond_dim_t<TenT>
+        > &bond_idx_increment_map,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.expand(ctx, a, bond_idx_increment_map)
+```
+
+Expand selected bonds by increasing their sizes according to `bond_idx_increment_map`. The keys specify the bonds to expand, and the corresponding values specify the additional sizes to append along those bonds. Elements whose coordinates lie within the original bounds are preserved. Any element with at least one coordinate in an appended range is set to zero. In the C++ interface, (1) applies the expansion to `inout` in place and (2) reads from `in` and writes the expanded tensor into `out`. In the Python interface, `bond_idx_increment_map` is a mapping from bond indices to bond-dimension increments, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::zeros<Ten>(ctx, {2, 2, 2});
+tcapi::expand(ctx, a, {{1, 2}, {0, 1}});
+auto s = tcapi::shape(ctx, a);
+// s == {3, 4, 2}
+auto el = tcapi::get_elem(ctx, a, {2, 3, 0});
+// el == 0.0
+```
+
+Python:
+
+```python
+a = tcapi.zeros(ctx, Ten, (2, 2, 2))
+a = tcapi.expand(ctx, a, {1: 2, 0: 1})
+s = tcapi.shape(ctx, a)
+# s == (3, 4, 2)
+el = tcapi.get_elem(ctx, a, (2, 3, 0))
+# el == 0.0
+```
+````
+
+#### `shrink`
+
+C++:
+
+```cpp
+template <typename TenT>
+void shrink(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const bond_idx_elem_coor_pair_map<TenT> &
+          bd_idx_el_coor_pair_map
+);                                      // (1)
+ 
+template <typename TenT>
+void shrink(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const bond_idx_elem_coor_pair_map<TenT> &
+          bd_idx_el_coor_pair_map,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.shrink(ctx, a, bd_idx_el_coor_pair_map)
+```
+
+Shrink selected bonds by slicing them to half-open coordinate ranges $[coor\_first,~coor\_second)$ specified by `bd_idx_el_coor_pair_map`.  Bonds not listed in `bd_idx_el_coor_pair_map` retain their original ranges (and hence their original dimensions). In the C++ interface, (1) shrinks `inout` in place and (2) reads from `in` and writes the sliced tensor into `out`. In the Python interface, `bd_idx_el_coor_pair_map` is a mapping from bond indices to coordinate-pair sequences, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 2}, gen
+);
+auto el1 = tcapi::get_elem(ctx, a, {0, 1, 1});
+tcapi::shrink(ctx,
+  a,
+  {{1, {1, 3}}, {0, {0, 2}}}
+);
+auto s = tcapi::shape(ctx, a);
+// s == {2, 2, 2}
+auto el2 = tcapi::get_elem(ctx, a, {0, 0, 1});
+// el1 == el2
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+el1 = tcapi.get_elem(ctx, a, (0, 1, 1))
+a = tcapi.shrink(ctx, a, {1: (1, 3), 0: (0, 2)})
+s = tcapi.shape(ctx, a)
+# s == (2, 2, 2)
+el2 = tcapi.get_elem(ctx, a, (0, 0, 1))
+# el1 == el2
+```
+````
+
+#### `extract_sub`
+
+C++:
+
+```cpp
+template <typename TenT>
+void extract_sub(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const List<
+        Pair<
+            tcapi::elem_coor_t<TenT>,
+            tcapi::elem_coor_t<TenT>
+        >> & coor_pairs
+);                                      // (1)
+
+template <typename TenT>
+void extract_sub(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const List<
+        Pair<
+            tcapi::elem_coor_t<TenT>,
+            tcapi::elem_coor_t<TenT>
+        >> & coor_pairs,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.extract_sub(ctx, a, coor_pairs)
+```
+
+Extract a subtensor specified by per-bond half-open coordinate ranges $[coor\_first,~coor\_second)$, provided in `coor_pairs` in bond-index order. In the C++ interface, (1) overwrites `inout` with the extracted subtensor and (2) reads from `in` and writes the extracted subtensor into `out`. In the Python interface, `coor_pairs` is a Python sequence of coordinate-pair sequences, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 2}, gen
+);
+Ten sub;
+tcapi::extract_sub(ctx,
+  a,
+  {{1, 3}, {0, 2}, {0, 2}},
+  sub
+);
+auto el1 = tcapi::get_elem(ctx, a, {1, 0, 0});
+auto el2 = tcapi::get_elem(ctx, sub, {0, 0, 0});
+// el1 == el2
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+sub = tcapi.extract_sub(ctx, a, ((1, 3), (0, 2), (0, 2)))
+el1 = tcapi.get_elem(ctx, a, (1, 0, 0))
+el2 = tcapi.get_elem(ctx, sub, (0, 0, 0))
+# el1 == el2
+```
+````
+
+#### `replace_sub`
+
+C++:
+
+```cpp
+template <typename TenT>
+void replace_sub(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const TenT &sub,
+    const tcapi::elem_coors_t<TenT> &begin_pt
+);                                      // (1)
+
+template <typename TenT>
+void replace_sub(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const TenT &sub,
+    const tcapi::elem_coors_t<TenT> &begin_pt,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.replace_sub(ctx, a, sub, begin_pt)
+```
+
+Replace a subregion of a tensor with `sub`, placing the origin (all-zero coordinate) of `sub` at `begin_pt` in the target tensor. In the C++ interface, (1) modifies `inout` in place and (2) reads from `in` and writes the updated tensor into `out`. In the Python interface, `begin_pt` is a Python sequence, and the returned value is a raw backend tensor with the specified subregion replaced.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::zeros<Ten>(ctx, {3, 4, 2});
+Ten sub = tcapi::random<Ten>(
+    ctx, {2, 2, 2}, gen
+);
+tcapi::replace_sub(ctx,
+  a,
+  sub,
+  {1, 2, 0}
+);
+auto el1 = tcapi::get_elem(ctx, a, {1, 2, 0});
+auto el2 = tcapi::get_elem(ctx, sub, {0, 0, 0});
+// el1 == el2
+```
+
+Python:
+
+```python
+a = tcapi.zeros(ctx, Ten, (3, 4, 2))
+sub = tcapi.random(ctx, Ten, (2, 2, 2), gen)
+a = tcapi.replace_sub(ctx, a, sub, (1, 2, 0))
+el1 = tcapi.get_elem(ctx, a, (1, 2, 0))
+el2 = tcapi.get_elem(ctx, sub, (0, 0, 0))
+# el1 == el2
+```
+````
+
+#### `concatenate`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT concatenate(
+    tcapi::context_handle_t<TenT> &ctx,
+    const List<CRef<TenT>> &ins,
+    const tcapi::bond_idx_t<TenT> concat_bdidx
+);
+```
+
+Python:
+
+```python
+tcapi.concatenate(ctx, ins, concat_bdidx)
+```
+
+Concatenate the tensors in `ins` along bond `concat_bdidx` and return the result. In the C++ interface, `ins` is a list of non-owning const references to existing tensors; the referenced tensor objects are not copied, consumed, or modified and must remain valid for the duration of the call. All input tensors must have the same order and identical bond dimensions on every bond except `concat_bdidx`. The output dimension along `concat_bdidx` equals the sum of the corresponding input dimensions. In the Python interface, `ins` is a Python sequence of raw backend tensors, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {2, 3, 4}, gen
+);
+auto b = tcapi::random<Ten>(
+  ctx, {2, 3, 4}, gen
+);
+auto c = tcapi::random<Ten>(
+  ctx, {2, 3, 4}, gen
+);
+auto d = tcapi::concatenate<Ten>(
+    ctx,
+    {std::cref(a), std::cref(b), std::cref(c)},
+    1
+);
+auto s = tcapi::shape(ctx, d);
+// s == {2, 9, 4}
+auto el1 = tcapi::get_elem(ctx, b, {0, 0, 0});
+auto el2 = tcapi::get_elem(ctx, d, {0, 3, 0});
+// el1 == el2
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (2, 3, 4), gen)
+b = tcapi.random(ctx, Ten, (2, 3, 4), gen)
+c = tcapi.random(ctx, Ten, (2, 3, 4), gen)
+d = tcapi.concatenate(ctx, (a, b, c), 1)
+s = tcapi.shape(ctx, d)
+# s == (2, 9, 4)
+el1 = tcapi.get_elem(ctx, b, (0, 0, 0))
+el2 = tcapi.get_elem(ctx, d, (0, 3, 0))
+# el1 == el2
+```
+````
+
+#### `stack`
+
+C++:
+
+```cpp
+template <typename TenT>
+TenT stack(
+    tcapi::context_handle_t<TenT> &ctx,
+    const List<CRef<TenT>> &ins,
+    const tcapi::bond_idx_t<TenT> stack_bdidx
+);
+```
+
+Python:
+
+```python
+tcapi.stack(ctx, ins, stack_bdidx)
+```
+
+Stack the tensors in `ins`, which must all have identical shape, along a new bond inserted at index `stack_bdidx`. In the C++ interface, `ins` is a list of non-owning const references to existing tensors; the referenced tensor objects are not copied, consumed, or modified and must remain valid for the duration of the call. If the inputs are $r$th-order tensors, the result is an ($r$+1)th-order tensor. The dimension of the newly inserted bond equals `ins.size()` in C++ or `len(ins)` in Python. In the Python interface, `ins` is a Python sequence of raw backend tensors, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {2, 3, 4}, gen
+);
+auto b = tcapi::random<Ten>(
+  ctx, {2, 3, 4}, gen
+);
+auto c = tcapi::random<Ten>(
+  ctx, {2, 3, 4}, gen
+);
+auto d = tcapi::stack(
+  ctx,
+  {std::cref(a), std::cref(b), std::cref(c)},
+  1
+);
+auto s = tcapi::shape(ctx, d);
+// s == {2, 3, 3, 4}
+auto el1 = tcapi::get_elem(ctx, b, {0, 2, 3});
+auto el2 = tcapi::get_elem(
+  ctx, d, {0, 1, 2, 3}
+);
+// el1 == el2
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (2, 3, 4), gen)
+b = tcapi.random(ctx, Ten, (2, 3, 4), gen)
+c = tcapi.random(ctx, Ten, (2, 3, 4), gen)
+d = tcapi.stack(ctx, (a, b, c), 1)
+s = tcapi.shape(ctx, d)
+# s == (2, 3, 3, 4)
+el1 = tcapi.get_elem(ctx, b, (0, 2, 3))
+el2 = tcapi.get_elem(ctx, d, (0, 1, 2, 3))
+# el1 == el2
+```
+````
+
+#### `for_each`
+
+C++:
+
+```cpp
+template <typename TenT, typename Func>
+void for_each(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    Func &&f
+);                                      // (1)
+    
+template <typename TenT, typename Func>
+void for_each(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    Func &&f
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.for_each(ctx, a, f)
+```
+
+Visit every element exactly once and apply `f`. The traversal order is implementation-defined. In the C++ interface, `Func` must be invocable with the corresponding signature. (1) In-place (mutating) traversal: `f` is invoked as `f(elem)`, where `elem` has type `tcapi::elem_t<TenT>&`. (2) Read-only *const* traversal: `f` is invoked as `f(elem)`, where `elem` has type `const tcapi::elem_t<TenT>` (or an equivalent const-qualified form, such as `const tcapi::elem_t<TenT>&`). In the Python interface, `f` is invoked as `f(el)`, where `el` is a scalar value consistent with the relevant `TenKind`. If `f(el)` returns `None`, the current element is copied unchanged into the result. Otherwise, the returned value is used as the replacement element value. `tcapi.for_each` returns a raw backend tensor with the resulting element values. The input tensor `a` is not modified.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+float tot = 0.0;
+auto sum = [&tot](const float el) {
+  tot += el; 
+};
+const Ten &ca = a;
+tcapi::for_each(ctx, ca, sum);  // call (2)
+// tot == 3.0
+auto plus_one = [](float &el) {
+ el += 1.0;
+};
+tcapi::for_each(ctx, a, plus_one);  // call (1)
+auto el = tcapi::get_elem(ctx, a, {1, 1});
+// el == 2.0
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+tot = {"value": 0.0}
+
+def sum_elem(el):
+    tot["value"] += el
+    return None
+
+tcapi.for_each(ctx, a, sum_elem)
+# tot["value"] == 3.0
+
+def plus_one(el):
+    return el + 1.0
+
+a = tcapi.for_each(ctx, a, plus_one)
+el = tcapi.get_elem(ctx, a, (1, 1))
+# el == 2.0
+```
+````
+
+#### `for_each_with_coors`
+
+C++:
+
+```cpp
+template <typename TenT, typename Func>
+void for_each_with_coors(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    Func &&f
+);                                      // (1)
+ 
+template <typename TenT, typename Func>
+void for_each_with_coors(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    Func &&f
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.for_each_with_coors(ctx, a, f)
+```
+
+This function is similar to `for_each`, but invokes `f` with both the element and its coordinates. For a zeroth-order tensor, the callable is invoked once with the empty coordinate sequence. The traversal order is implementation-defined. In the C++ interface, the callable `f` is invoked as `f(elem, coors)`, where `coors` has type `const tcapi::elem_coors_t<TenT>&`. In the Python interface, `f` is invoked as `f(el, coors)`, where `el` is a scalar value consistent with the relevant `TenKind`, and `coors` is a Python coordinate sequence in bond-index order. If `f(el, coors)` returns `None`, the current element is copied unchanged into the result. Otherwise, the returned value is used as the replacement element value. `tcapi.for_each_with_coors` returns a raw backend tensor with the resulting element values. The input tensor `a` is not modified.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+auto plus_coor0 = [](
+    float &el,
+    const tcapi::elem_coors_t<Ten> &coors
+) {
+  el += coors[0];
+};
+tcapi::for_each_with_coors(
+    ctx, a, plus_coor0
+);  // call (1)
+auto el = tcapi::get_elem(ctx, a, {1, 1});
+// el == 2.0
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+
+def plus_coor0(el, coors):
+    return el + coors[0]
+
+a = tcapi.for_each_with_coors(
+    ctx, a, plus_coor0
+)
+el = tcapi.get_elem(ctx, a, (1, 1))
+# el == 2.0
+```
+````
+
+(sec:tensor_linear_algebra)=
+### Tensor linear-algebra operations
+
+This subsection specifies tensor linear-algebra operations provided by TCAPI. These routines operate on higher-order tensors by temporarily matricizing them according to a user-specified bond partition. They then apply standard linear-algebra kernels and fold the results back into tensor form. The functionality includes norms, normalization, scalar scaling, matrix functions, factorizations, and eigensolvers. Unless otherwise noted, dimensional compatibility conditions required by the underlying matrix operations must be satisfied. In the Python interface, linear-algebra routines return newly created or updated tensors as raw backend tensors; users update tensor variables through normal Python rebinding. Multi-output routines return tuples.
+
+#### `diag`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void diag(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout
+);                                      // (1)
+ 
+template <typename TenT>
+void diag(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.diag(ctx, a)
+```
+
+If the input is first-order with shape $\{N\}$, the routine returns a second-order diagonal tensor with shape $\{N,N\}$, placing the input elements on the main diagonal and setting all off-diagonal elements to zero. Implementations may store the result compactly when supported by the underlying TCF. If the input is second-order with shape $\{M,N\}$, the routine extracts the main diagonal as a first-order tensor of length $\min(M,N)$. The input tensor must be either first- or second-order. In the C++ interface, (1) modifies `inout` in place, and (2) reads from `in` and writes the result into `out`. In the Python interface, the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+auto a_cpy = tcapi::copy(ctx, a);
+tcapi::diag(ctx, a);
+auto r = tcapi::order(ctx, a);
+// r == 1
+tcapi::diag(ctx, a);
+// a == a_cpy
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+a_cpy = tcapi.copy(ctx, a)
+a = tcapi.diag(ctx, a)
+r = tcapi.order(ctx, a)
+# r == 1
+a = tcapi.diag(ctx, a)
+# a == a_cpy
+```
+````
+
+#### `norm`
+
+C++:
+
+``` cpp
+template <typename TenT>
+tcapi::real_t<TenT> norm(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a
+);
+```
+
+Python:
+
+```python
+tcapi.norm(ctx, a)
+```
+
+Return the Frobenius norm of `a`. In the C++ interface, the returned value has type `tcapi::real_t<TenT>`. In the Python interface, the returned value is a scalar with the real dtype corresponding to `tcapi.ten_kind(ctx, a)`. For an $r$th-order tensor $A \in \mathbb{K}^{d_0\times \cdots \times d_{r-1}}$, the Frobenius norm is
+```{math}
+:label: eq:frob_norm
+
+\lVert A\rVert_F =
+\sqrt{\sum_{i_0=0}^{d_0-1}\cdots\sum_{i_{r-1}=0}^{d_{r-1}-1}
+\big|A_{i_0\cdots i_{r-1}}\big|^2},
+```
+where $|A_{i_{0} \cdots i_{r-1}}|$ denotes the modulus when $A$ is complex-valued.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+auto norm = tcapi::norm(ctx, a);
+// norm == std::sqrt(3.0)
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+norm = tcapi.norm(ctx, a)
+# norm == sqrt(3.0)
+```
+````
+
+#### `normalize`
+
+C++:
+
+``` cpp
+template <typename TenT>
+tcapi::real_t<TenT> normalize(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout
+);                                      // (1)
+ 
+template <typename TenT>
+tcapi::real_t<TenT> normalize(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.normalize(ctx, a)
+```
+
+Scale `a` to unit Frobenius norm. In the C++ interface, (1) normalizes `inout` in place, and (2) reads from `in` and writes the normalized tensor into `out`; both overloads return the original norm as `tcapi::real_t<TenT>`. In the Python interface, the returned value is the tuple `(normalized_a, norm)`, where `normalized_a` is a raw backend tensor containing the normalized tensor and `norm` is the original Frobenius norm.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(ctx, {3, 4, 2}, gen);
+tcapi::normalize(ctx, a);
+auto norm = tcapi::norm(ctx, a);
+// norm == 1.0
+
+a = tcapi::random<Ten>(ctx, {3, 4, 2}, gen);
+Ten b;
+auto m = tcapi::normalize(ctx, a, b);
+auto m2 = tcapi::norm(ctx, b);
+// m2 == 1.0
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+a, orig_norm = tcapi.normalize(ctx, a)
+norm = tcapi.norm(ctx, a)
+# norm == 1.0
+```
+````
+
+#### `scale`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void scale(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const tcapi::elem_t<TenT> s
+);                                      // (1)
+
+template <typename TenT>
+void scale(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const tcapi::elem_t<TenT> s,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.scale(ctx, a, s)
+```
+
+Multiply a tensor by a scalar `s`. In the C++ interface, `s` has type `tcapi::elem_t<TenT>`, (1) scales `inout` in place, and (2) reads from `in` and writes the scaled tensor into `out`. In the Python interface, `s` is a scalar value consistent with the dtype associated with `tcapi.ten_kind(ctx, a)`, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+
+tcapi::scale(ctx, a, 3.0);
+auto el = tcapi::get_elem(ctx, a, {2, 2});
+// el == 3.0
+
+Ten c;
+tcapi::scale(ctx, a, -2.0, c);
+auto el2 = tcapi::get_elem(ctx, c, {2, 2});
+// el2 == -6.0
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+
+a = tcapi.scale(ctx, a, 3.0)
+el = tcapi.get_elem(ctx, a, (2, 2))
+# el == 3.0
+
+c = tcapi.scale(ctx, a, -2.0)
+el2 = tcapi.get_elem(ctx, c, (2, 2))
+# el2 == -6.0
+```
+````
+
+#### `trace`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void trace(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const bond_idx_pairs_t<TenT> &bdidx_pairs
+);                                      // (1)
+
+template <typename TenT>
+void trace(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const bond_idx_pairs_t<TenT> &bdidx_pairs,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.trace(ctx, a, bdidx_pairs)
+```
+
+Perform a partial trace by summing over the bond pairs specified by `bdidx_pairs`. The type `bond_idx_pairs_t` is defined in Sec. {ref}`sec:aux_types`. In the Python interface, `bdidx_pairs` is a Python sequence of bond-index pairs.
+
+Each paired bond must have the same dimension. If all bonds are paired, the result is a zeroth-order tensor. The relative order and dimensions of any remaining (untraced) bonds are preserved.
+
+In the C++ interface, (1) applies the trace to `inout` in place, and (2) reads from `in` and writes the result into `out`. In the Python interface, the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(ctx, {3, 4, 2, 4, 2}, gen);
+tcapi::trace(ctx, a, {{1, 3}, {2, 4}});
+auto s = tcapi::shape(ctx, a);
+// s == {3}
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 2, 4, 2), gen)
+a = tcapi.trace(ctx, a, ((1, 3), (2, 4)))
+s = tcapi.shape(ctx, a)
+# s == (3,)
+```
+````
+
+#### `exp`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void exp(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const tcapi::order_t<TenT> num_of_bds_as_row
+);                                      // (1)
+
+template <typename TenT>
+void exp(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.exp(ctx, a, num_of_bds_as_row)
+```
+
+Compute the matrix exponential by matricizing the tensor with the first `num_of_bds_as_row` bonds as row indices and the remaining bonds as column indices. The routine applies the matrix exponential to the resulting matrix and refolds the result back to the original tensor shape. The total row dimension must equal the total column dimension. In the C++ interface, (1) modifies `inout` in place, and (2) reads from `in` and writes the result into `out`. In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+tcapi::exp(ctx, a, 1);
+auto el = tcapi::get_elem(ctx, a, {1, 1});
+// el == 2.71828...
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+a = tcapi.exp(ctx, a, 1)
+el = tcapi.get_elem(ctx, a, (1, 1))
+# el == 2.71828...
+```
+````
+
+#### `inverse`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void inverse(
+    tcapi::context_handle_t<TenT> &ctx,
+    TenT &inout,
+    const tcapi::order_t<TenT> num_of_bds_as_row
+);                                      // (1)
+
+template <typename TenT>
+void inverse(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &in,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    TenT &out
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.inverse(ctx, a, num_of_bds_as_row)
+```
+
+Compute the matrix inverse by matricizing the tensor with the first `num_of_bds_as_row` bonds as row indices and the remaining bonds as column indices. The routine forms the corresponding square matrix, inverts it, and refolds the result back to the original tensor shape. The total row dimension must equal the total column dimension, and the resulting matrix must be invertible. In the C++ interface, (1) modifies `inout` in place, and (2) reads from `in` and writes the result into `out`. In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::eye<Ten>(ctx, 3);
+tcapi::inverse(ctx, a, 1);
+auto el = tcapi::get_elem(ctx, a, {1, 1});
+// el == 1.0
+```
+
+Python:
+
+```python
+a = tcapi.eye(ctx, Ten, 3)
+a = tcapi.inverse(ctx, a, 1)
+el = tcapi.get_elem(ctx, a, (1, 1))
+# el == 1.0
+```
+````
+
+#### `contract`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void contract(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const List<
+        tcapi::bond_label_t<TenT>
+        > &bd_labs_a,
+    const TenT &b,
+    const List<
+        tcapi::bond_label_t<TenT>
+        > &bd_labs_b,
+    TenT &c,
+    const List<
+        tcapi::bond_label_t<TenT>
+        > &bd_labs_c
+);                                      // (1)
+
+template <typename TenT>
+void contract(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const std::string_view bd_labs_str_a,
+    const TenT &b,
+    const std::string_view bd_labs_str_b,
+    TenT &c,
+    const std::string_view bd_labs_str_c
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.contract(
+    ctx, a, bd_labs_a, b, bd_labs_b,
+    bd_labs_c
+)
+```
+
+This routine performs a label-based Einstein contraction. Let the label lists for `a`, `b`, and the result be $\alpha$, $\beta$, and $\gamma$, respectively. All labels that appear in both $\alpha$ and $\beta$ but not in $\gamma$ are contracted (summed over). The labels in $\gamma$ define both the free bonds of the result and their ordering. Bond dimensions associated with identical labels must agree. In the C++ interface, (1) provides labels as integer-like values of type `tcapi::bond_label_t<TenT>`, and (2) provides labels as strings (e.g., `"ijk"`), where each character is interpreted as a label. In the Python interface, labels may be provided as sequences of integers or, for the string-label API, as strings; the returned value is a raw backend tensor. If $\gamma$ is empty, the result is a zeroth-order tensor. This API guarantees correctness even when the C++ output tensor `c` aliases `a`, `b`, or both. Repeating a label within a single operand (i.e., an implicit trace within `a` or `b`) is not supported in the current specification; use `trace` first if needed.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 2}, gen
+);
+auto b = tcapi::random<Ten>(
+  ctx, {2, 4, 5}, gen
+);
+Ten c;
+tcapi::contract(ctx,
+  a, {1, -1, -2},
+  b, {-2, -1, 0},
+  c, {0, 1}
+);
+// which is equivalent to
+tcapi::contract(ctx,
+  a, "ijk", b, "kjl",
+  c, "li"
+);
+auto s = tcapi::shape(ctx, c);
+// s == {5, 3}
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+b = tcapi.random(ctx, Ten, (2, 4, 5), gen)
+c = tcapi.contract(
+    ctx,
+    a, (1, -1, -2),
+    b, (-2, -1, 0),
+    (0, 1),
+)
+# which is equivalent to
+c = tcapi.contract(
+    ctx, a, "ijk", b, "kjl", "li"
+)
+s = tcapi.shape(ctx, c)
+# s == (5, 3)
+```
+````
+
+#### `linear_combine`
+
+C++:
+
+``` cpp
+template <typename TenT>
+TenT linear_combine(
+    tcapi::context_handle_t<TenT> &ctx,
+    const List<CRef<TenT>> &ins
+);                                      // (1)
+ 
+template <typename TenT>
+TenT linear_combine(
+    tcapi::context_handle_t<TenT> &ctx,
+    const List<CRef<TenT>> &ins,
+    const List<tcapi::elem_t<TenT>> &coefs
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.linear_combine(ctx, ins)
+tcapi.linear_combine(ctx, ins, coefs)
+```
+
+Form and return the linear combination $\sum_{i=0}^{m-1} s_i A_i$, where $\{A_i\} = \texttt{ins}$ and $\{s_i\} = \texttt{coefs}$. In overload (1), all coefficients are implicitly set to $s_i=1$. All input tensors $A_i$ must have identical shapes. In the C++ interface, `ins` is a list of non-owning const references to existing tensors; the referenced tensor objects are not copied, consumed, or modified and must remain valid for the duration of the call. In the Python interface, `ins` is a Python sequence of raw backend tensors, `coefs` is a Python sequence of scalar values consistent with the input tensor kind, and the returned value is a raw backend tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 2}, gen
+);
+auto b = tcapi::random<Ten>(
+  ctx, {3, 4, 2}, gen
+);
+auto c = tcapi::random<Ten>(
+  ctx, {3, 4, 2}, gen
+);
+auto d = tcapi::linear_combine(ctx,
+  {std::cref(a), std::cref(b), std::cref(c)},
+  {1.0, 2.0, 3.0}
+);
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+b = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+c = tcapi.random(ctx, Ten, (3, 4, 2), gen)
+d = tcapi.linear_combine(
+    ctx,
+    (a, b, c),
+    (1.0, 2.0, 3.0),
+)
+```
+````
+
+#### `svd`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void svd(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    TenT &u,
+    tcapi::real_ten_t<TenT> &sigma,
+    TenT &v_dag
+);
+```
+
+Python:
+
+```python
+tcapi.svd(ctx, a, num_of_bds_as_row)
+```
+
+Perform an SVD of an $r$th-order tensor `a` by first matricizing it into a matrix. Let $\texttt{shape(a)} = \{d_0,\cdots,d_{r-1}\}$ and $k = \texttt{num\_of\_bds\_as\_row}$ with $1 \leq k < r$. The tensor is matricized by grouping the first $k$ bonds into the row index and the remaining bonds into the column index:
+```{math}
+    A' \in \mathbb{K}^{I\times J},\quad I=\prod_{b=0}^{k-1}d_b,\quad J = \prod_{b=k}^{r-1}d_b~.
+```
+An SVD
+```{math}
+    A' = U\Sigma V^{\dagger}~
+```
+is then computed, where $\Sigma = \text{diag}(s_0,\cdots,s_{\kappa-1})$ with $s_0 \geq s_1 \geq \cdots \geq s_{\kappa-1}\geq 0$ and $\kappa = \min(I,J)$. Finally, the factors are folded back into tensors: $\texttt{shape(u)} = \{d_0,\cdots, d_{k-1}, \kappa\}$, $\texttt{shape(sigma)} = \{\kappa,\kappa\}$, and $\texttt{shape(v\_dag)} = \{\kappa, d_k, \cdots, d_{r-1}\}$. `sigma` is a real second-order diagonal tensor corresponding to $\Sigma$; its diagonal elements are the singular values in non-increasing order, and all off-diagonal elements are zero. The first $k$ bonds of `u` match the first $k$ bonds of `a`, and the remaining $r-k$ bonds of `v_dag` match the remaining bonds of `a`.
+In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is the tuple `(u, sigma, v_dag)` of raw backend tensors.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 12}, gen
+);
+Ten u, sigma, v_t;
+tcapi::svd(ctx, a, 2, u, sigma, v_t);
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 12), gen)
+u, sigma, v_t = tcapi.svd(ctx, a, 2)
+```
+````
+
+#### `trunc_svd`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void trunc_svd(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    TenT &u,
+    tcapi::real_ten_t<TenT> &sigma,
+    TenT &v_dag,
+    tcapi::real_t<TenT> &trunc_err,
+    const tcapi::bond_dim_t<TenT> chi_max,
+    const tcapi::real_t<TenT> s_min
+);                                      // (1)
+    
+template <typename TenT>
+void trunc_svd(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    TenT &u,
+    tcapi::real_ten_t<TenT> &sigma,
+    TenT &v_dag,
+    tcapi::real_t<TenT> &trunc_err,
+    const tcapi::bond_dim_t<TenT> chi_min,
+    const tcapi::bond_dim_t<TenT> chi_max,
+    const tcapi::real_t<TenT> target_trunc_err,
+    const tcapi::real_t<TenT> s_min
+);                                      // (2)
+```
+
+Python:
+
+```python
+tcapi.trunc_svd(
+    ctx, a, num_of_bds_as_row, chi_max, s_min
+)
+tcapi.trunc_svd(
+    ctx, a, num_of_bds_as_row,
+    chi_min, chi_max, target_trunc_err, s_min
+)
+```
+
+This routine follows the same matricization and SVD convention as `svd`, but additionally truncates the singular values according to a prescribed strategy. For pre-truncation singular values $s_0 \geq \cdots \geq s_{\kappa-1}$, define the (relative) truncation error for keeping $\chi$ values as
+```{math}
+    \epsilon = \frac{\sum_{i = \chi}^{\kappa-1} s_i^2}{\sum_{i = 0}^{\kappa-1} s_i^2}~,
+```
+which is returned in `trunc_err`. (1) Fixed maximum bond dimension kept: keep at most $\texttt{chi\_max}$ singular values after discarding those below $\texttt{s\_min}$. Equivalently, (2) with $\texttt{chi\_min} = 1$ and $\texttt{target\_trunc\_err} = 0$. (2) General truncation strategy:
+
+- Discard all $s_i < \texttt{s\_min}$.
+- Among the singular values that survive the `s_min` cutoff, retain at least `chi_min` values when possible. If fewer than `chi_min` values survive the cutoff, retain all surviving values; values below `s_min` are not restored to satisfy `chi_min`.
+- Increase $\chi$ (retaining additional values in descending order) until either $\epsilon \leq \texttt{target\_trunc\_err}$ or $\chi = \texttt{chi\_max}$.
+
+The output `sigma` is a second-order diagonal tensor of retained singular values with shape $\{\chi,\chi\}$, where $\chi$ is the retained bond dimension. In the Python interface, `num_of_bds_as_row`, `chi_min`, and `chi_max` are integer-like values, `target_trunc_err` and `s_min` are real scalar values, and the returned value is the tuple `(u, sigma, v_dag, trunc_err)`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+Ten u, sigma, v_t;
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 12}, gen
+);
+float trunc_err = 0.0;
+tcapi::trunc_svd(ctx,
+  a, 2,
+  u, sigma, v_t,
+  trunc_err,
+  3, 6, 1e-2, 1e-12
+);
+// trunc_err != 0.0
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 12), gen)
+u, sigma, v_t, trunc_err = tcapi.trunc_svd(
+    ctx,
+    a, 2,
+    3, 6, 1e-2, 1e-12,
+)
+# trunc_err != 0.0
+```
+````
+
+#### `qr`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void qr(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    TenT &q,
+    TenT &r
+);
+```
+
+Python:
+
+```python
+tcapi.qr(ctx, a, num_of_bds_as_row)
+```
+
+Perform an economy (thin) QR decomposition of an $r$th-order tensor `a` using the same matricization convention as `svd`. Let $\texttt{shape(a)} = \{d_0,\cdots,d_{r-1}\}$ and $k = \texttt{num\_of\_bds\_as\_row}$ with $1 \leq k < r$. The tensor is first matricized by grouping the first $k$ bonds into the row index and the remaining bonds into the column index:
+```{math}
+    A' \in \mathbb{K}^{I\times J},\quad I=\prod_{b=0}^{k-1}d_b,\quad J = \prod_{b=k}^{r-1}d_b~.
+```
+A QR decomposition
+```{math}
+    A' = QR~
+```
+is then computed, where $Q \in \mathbb{K}^{I\times \rho}$ has orthonormal columns and $R \in \mathbb{K}^{\rho \times J}$ is upper triangular (upper trapezoidal if $I < J$) with $\rho = \min(I,J)$. Finally, the factors are folded back into tensors: $\texttt{shape(q)} = \{d_0,\cdots, d_{k-1}, \rho\}$ and $\texttt{shape(r)} = \{\rho, d_k, \cdots, d_{r-1}\}$.
+In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is the tuple `(q, r)` of raw backend tensors.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 12}, gen
+);
+Ten q, r;
+tcapi::qr(ctx, a, 2, q, r);
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 12), gen)
+q, r = tcapi.qr(ctx, a, 2)
+```
+````
+
+#### `lq`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void lq(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    TenT &l,
+    TenT &q
+);
+```
+
+Python:
+
+```python
+tcapi.lq(ctx, a, num_of_bds_as_row)
+```
+
+Perform an economy (thin) LQ decomposition of an $r$th-order tensor `a` using the same matricization convention as `svd`. Let $\texttt{shape(a)} = \{d_0,\cdots,d_{r-1}\}$ and $k = \texttt{num\_of\_bds\_as\_row}$ with $1 \leq k < r$. The tensor is first matricized by grouping the first $k$ bonds into the row index and the remaining bonds into the column index:
+```{math}
+    A' \in \mathbb{K}^{I\times J},\quad I=\prod_{b=0}^{k-1}d_b,\quad J = \prod_{b=k}^{r-1}d_b~.
+```
+An LQ decomposition
+```{math}
+    A' = LQ~,
+```
+is then computed, where $L \in \mathbb{K}^{I\times \rho}$ is lower triangular (lower trapezoidal if $I > J$) and $Q \in \mathbb{K}^{\rho \times J}$ has orthonormal rows with $\rho = \min(I,J)$. Finally, the factors are folded back into tensors: $\texttt{shape(l)} = \{d_0,\cdots, d_{k-1}, \rho\}$ and $\texttt{shape(q)} = \{\rho, d_k, \cdots, d_{r-1}\}$.
+In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is the tuple `(l, q)` of raw backend tensors.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 12}, gen
+);
+Ten l, q;
+tcapi::lq(ctx, a, 2, l, q);
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 12), gen)
+l, q = tcapi.lq(ctx, a, 2)
+```
+````
+
+#### `eigvals`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void eigvals(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    tcapi::cplx_ten_t<TenT> &w
+);
+```
+
+Python:
+
+```python
+tcapi.eigvals(ctx, a, num_of_bds_as_row)
+```
+
+Compute the eigenvalues of an $r$th-order tensor `a` by first reshaping it into a matrix. Let $\texttt{shape(a)} = \{d_0,\cdots,d_{r-1}\}$ and $k = \texttt{num\_of\_bds\_as\_row}$ with $1 \leq k < r$. The tensor is matricized by grouping the first $k$ bonds into the row index and the remaining bonds into the column index:
+```{math}
+    A' \in \mathbb{K}^{I\times J},\quad I=\prod_{b=0}^{k-1}d_b,\quad J = \prod_{b=k}^{r-1}d_b~,
+```
+where $I=J$ is required. The spectrum $\{ \lambda_i \}_{i=0}^{I-1}$ of $A'$ is then computed (e.g., via a dense eigensolver) and is returned as a first-order complex tensor `w`. Unlike `eig`, which returns the eigenvalue matrix as a second-order diagonal tensor for use in decompositions, this routine returns only the eigenvalue list as a first-order tensor. In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is a raw backend tensor whose kind is the complex counterpart of the input tensor kind.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 12}, gen
+);
+CplxTen w;
+tcapi::eigvals(ctx, a, 2, w);
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 12), gen)
+w = tcapi.eigvals(ctx, a, 2)
+```
+````
+
+#### `eigvalsh`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void eigvalsh(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    tcapi::real_ten_t<TenT> &w
+);
+```
+
+Python:
+
+```python
+tcapi.eigvalsh(ctx, a, num_of_bds_as_row)
+```
+
+Hermitian/symmetric variant of `eigvals`. The input is interpreted as a real symmetric or complex Hermitian matrix after matricization, and the eigenvalues are returned as a real first-order tensor `w` in ascending order. Unlike `eigh`, which returns the eigenvalue matrix as a second-order diagonal tensor for use in decompositions, this routine returns only the eigenvalue list as a first-order tensor. In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is a raw backend tensor whose kind is the real counterpart of the input tensor kind.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 3, 4}, gen
+);
+Ten a_t, w;
+tcapi::transpose(ctx, a, {2, 3, 0, 1}, a_t);
+auto a_sym = tcapi::linear_combine(
+  ctx, {std::cref(a), std::cref(a_t)}
+);
+tcapi::eigvalsh(ctx, a_sym, 2, w);
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 3, 4), gen)
+a_t = tcapi.transpose(ctx, a, (2, 3, 0, 1))
+a_sym = tcapi.linear_combine(ctx, (a, a_t))
+w = tcapi.eigvalsh(ctx, a_sym, 2)
+```
+````
+
+#### `eig`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void eig(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    tcapi::cplx_ten_t<TenT> &lambda_mat,
+    tcapi::cplx_ten_t<TenT> &v
+);
+```
+
+Python:
+
+```python
+tcapi.eig(ctx, a, num_of_bds_as_row)
+```
+
+Perform a right eigendecomposition of an $r$th-order tensor `a` by first matricizing it into a matrix. Let $\texttt{shape(a)} = \{d_0,\cdots,d_{r-1}\}$ and $k = \texttt{num\_of\_bds\_as\_row}$ with $1 \leq k < r$. The tensor is matricized by grouping the first $k$ bonds into the row index and the remaining bonds into the column index:
+```{math}
+    A' \in \mathbb{K}^{I\times J},\quad I=\prod_{b=0}^{k-1}d_b,\quad J = \prod_{b=k}^{r-1}d_b~,
+```
+where $I=J$ is required. A right-eigendecomposition
+```{math}
+    A'V=V\Lambda~,
+```
+is then computed, where the diagonal elements of $\Lambda = \text{diag}(\lambda_0,\cdots,\lambda_{I-1})$ are the eigenvalues and the columns of $V$ are the corresponding right eigenvectors. The routine returns the eigenvalues as `lambda_mat`, a second-order diagonal tensor representing $\Lambda$ with shape $\{I,I\}$, and returns the eigenvectors in `v`, obtained by folding $V$ back to a tensor with $\texttt{shape(v)} = \{d_0,\cdots,d_{k-1},I\}$, so that the last bond indexes eigenvectors and the first $k$ bonds match those of `a`.
+In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is the tuple `(lambda_mat, v)` of raw backend tensors whose kinds are the complex counterpart of the input tensor kind.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 12}, gen
+);
+CplxTen lambda_mat, v;
+tcapi::eig(ctx, a, 2, lambda_mat, v);
+auto s = tcapi::shape(ctx, v);
+// s == {3, 4, 12}
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 12), gen)
+lambda_mat, v = tcapi.eig(ctx, a, 2)
+s = tcapi.shape(ctx, v)
+# s == (3, 4, 12)
+```
+````
+
+#### `eigh`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void eigh(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const tcapi::order_t<TenT>
+        num_of_bds_as_row,
+    tcapi::real_ten_t<TenT> &lambda_mat,
+    TenT &v
+);
+```
+
+Python:
+
+```python
+tcapi.eigh(ctx, a, num_of_bds_as_row)
+```
+
+Hermitian/symmetric variant of `eig`. The input is interpreted as a real symmetric or complex Hermitian matrix after matricization. The eigenvalues are returned as `lambda_mat`, a real second-order diagonal tensor whose diagonal elements are the eigenvalues in ascending order, and the corresponding eigenvectors are returned in `v`. In the Python interface, `num_of_bds_as_row` is an integer-like value, and the returned value is the tuple `(lambda_mat, v)` of raw backend tensors; `lambda_mat` has the tensor kind obtained by taking the real counterpart of the input tensor kind, while `v` has the same kind as the input tensor.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto a = tcapi::random<Ten>(
+  ctx, {3, 4, 3, 4}, gen
+);
+Ten a_t, lambda_mat, v;
+tcapi::transpose(ctx, a, {2, 3, 0, 1}, a_t);
+auto a_sym = tcapi::linear_combine(
+  ctx, {std::cref(a), std::cref(a_t)}
+);
+tcapi::eigh(ctx, a_sym, 2, lambda_mat, v);
+auto s = tcapi::shape(ctx, v);
+// s == {3, 4, 12}
+```
+
+Python:
+
+```python
+a = tcapi.random(ctx, Ten, (3, 4, 3, 4), gen)
+a_t = tcapi.transpose(ctx, a, (2, 3, 0, 1))
+a_sym = tcapi.linear_combine(ctx, (a, a_t))
+lambda_mat, v = tcapi.eigh(ctx, a_sym, 2)
+s = tcapi.shape(ctx, v)
+# s == (3, 4, 12)
+```
+````
+
+### Miscellaneous routines
+
+This subsection specifies auxiliary routines that support context management, data movement, debugging, and interoperability. These routines are not performance-critical.
+
+#### `create_context`
+
+C++:
+
+``` cpp
+template <typename ContextHandleT,
+          /* implementation-defined */ >
+void create_context(
+    ContextHandleT &ctx,
+    /* implementation-defined */
+);
+```
+
+Python:
+
+```python
+tcapi.create_context(Ten, **options)
+```
+
+Create and initialize a backend execution context. In the C++ interface, the concrete type `ContextHandleT` selects the target TCF/backend. The handle `ctx` is default-constructible and is initially not bound to a live execution context; on success, it becomes a valid context handle. In the Python interface, `Ten` is a `TenKind` that selects the implementation family for the context, and the returned value is an implementation-defined context handle. A context may support multiple C++ tensor types `TenT` or Python `TenKind` objects provided by the same TCAPI implementation. Implementations may accept additional parameters, such as device IDs, streams/queues, allocators, or logging/debug flags.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// Pseudocode
+// For a tensor on CPU with the type CPUTen
+tcapi::context_handle_t<CPUTen> ctx_cpu;
+// default threads, default allocator
+tcapi::create_context(ctx_cpu);
+
+// For a tensor on GPU with the type GPUTen
+tcapi::context_handle_t<GPUTen> ctx_gpu;
+int device_id = 0;
+GpuStream stream = /* ... */;
+// select device and stream/queue
+tcapi::create_context(
+  ctx_gpu, device_id, stream
+);
+```
+
+Python:
+
+```python
+# Pseudocode
+# For a tensor on CPU with the TenKind CPUTen
+ctx_cpu = tcapi.create_context(CPUTen)
+
+# For a tensor on GPU with the TenKind GPUTen
+ctx_gpu = tcapi.create_context(
+    GPUTen,
+    device_id=0,
+    stream=stream,
+)
+```
+````
+
+#### `destroy_context`
+
+C++:
+
+``` cpp
+template <typename ContextHandleT>
+void destroy_context(ContextHandleT &ctx);
+```
+
+Python:
+
+```python
+tcapi.destroy_context(ctx)
+```
+
+Destroy the backend execution context managed by `ctx` and release any owned resources (e.g., devices, streams/queues, library handles, memory pools). After this call, `ctx` is invalidated and must not be passed to further TCAPI routines unless it is re-initialized via `create_context`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+tcapi::destroy_context(ctx);
+```
+
+Python:
+
+```python
+tcapi.destroy_context(ctx)
+```
+````
+
+#### `to_range`
+
+C++:
+
+``` cpp
+template <typename TenT,
+          typename RandomIt,
+          typename Func>
+void to_range(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    RandomIt first,
+    Func &&coors2idx
+);
+```
+
+Python:
+
+```python
+tcapi.to_range(ctx, a, coors2idx)
+```
+
+Copy all elements of `a` into a one-dimensional container using a user-supplied index map. In the C++ interface, elements are copied into a random-access output range beginning at `first`; for each coordinate tuple `coors`, the destination is written as `*(first + coors2idx(coors))`. The callable `coors2idx` must have the following signature:
+
+``` cpp
+std::iterator_traits<
+        RandomIt
+>::difference_type coors2idx(
+    const tcapi::elem_coors_t<TenT> &coors
+);
+```
+
+It must map every valid coordinate of `a` to a valid index in $[0,\texttt{tcapi::size(ctx,a)})$. In the Python interface, the returned value is a Python `list` with length `tcapi.size(ctx, a)`. The callable `coors2idx` is invoked as `coors2idx(coors)`, where `coors` is a Python coordinate sequence in bond-index order, and must return an integer-like index in $[0,\texttt{tcapi.size(ctx,a)})$. For a zeroth-order tensor, the output range or list has length 1; `coors2idx` is invoked once with the empty coordinate sequence and must return 0. Each list element is a scalar value consistent with the relevant `TenKind`. For a diagonal tensor, this routine writes all tensor elements, including off-diagonal zeros. To extract only diagonal elements, use `diag`.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+using Elem = typename tcapi::elem_t<Ten>;
+using ElemVec = std::vector<Elem>;
+std::iterator_traits<
+    typename ElemVec::iterator
+>::difference_type coors2idx(
+    const tcapi::elem_coors_t<Ten> &coors
+) {
+  return 3 * coors[0] + coors[1]; 
+}
+ElemVec els {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+auto a = tcapi::assign_from_range<Ten>(
+    ctx, {2, 3}, els.begin(), coors2idx
+);
+ElemVec els2(6);
+tcapi::to_range(ctx,
+  a,
+  els2.begin(),
+  coors2idx
+);
+// els2 == els
+```
+
+Python:
+
+```python
+def coors2idx(coors):
+    return 3 * coors[0] + coors[1]
+
+els = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+a = tcapi.assign_from_range(
+    ctx, Ten, (2, 3), els, coors2idx
+)
+els2 = tcapi.to_range(ctx, a, coors2idx)
+# els2 == els
+```
+````
+
+#### `show`
+
+C++:
+
+``` cpp
+template <typename TenT>
+void show(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a
+);
+```
+
+Python:
+
+```python
+tcapi.show(ctx, a)
+```
+
+Print the contents of `a` to standard output in a human-readable form. The exact formatting (layout, precision, ordering, etc.) is implementation-defined.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+tcapi::show(ctx, a);
+```
+
+Python:
+
+```python
+tcapi.show(ctx, a)
+```
+````
+
+#### `close`
+
+C++:
+
+``` cpp
+template <typename TenT>
+bool close(
+    tcapi::context_handle_t<TenT> &ctx,
+    const TenT &a,
+    const TenT &b,
+    const tcapi::real_t<TenT> epsilon
+);
+```
+
+Python:
+
+```python
+tcapi.close(ctx, a, b, epsilon)
+```
+
+This routine performs an elementwise absolute-tolerance comparison. The comparison succeeds iff $\texttt{shape(a)} = \texttt{shape(b)} = \{d_0,\cdots, d_{r-1}\}$, and
+```{math}
+    \text{Close}(A,B;\epsilon) \equiv \max_{0\leq i_b < d_b} |A_{i_0\cdots i_{r-1}} - B_{i_0\cdots i_{r-1}}|\leq \epsilon~,
+```
+where $|\cdot|$ denotes absolute value, or modulus for complex values. The parameter $\texttt{epsilon}$ must satisfy $\texttt{epsilon} \geq 0$. In the C++ interface, the returned value is `true` when the comparison succeeds and `false` otherwise. In the Python interface, `epsilon` is a real scalar value and the returned value is a Boolean-like value.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto A = tcapi::eye<Ten>(ctx, 3);
+auto B = tcapi::copy(ctx, A);
+tcapi::set_elem(ctx, B, {2, 0}, 1e-5);
+
+bool ok_abs = tcapi::close(ctx, A, B, 1e-6);
+// false
+ok_abs = tcapi::close(ctx, A, B, 1e-4f);
+// true
+```
+
+Python:
+
+```python
+A = tcapi.eye(ctx, Ten, 3)
+B = tcapi.copy(ctx, A)
+B = tcapi.set_elem(ctx, B, (2, 0), 1e-5)
+
+ok_abs = tcapi.close(ctx, A, B, 1e-6)
+# False
+ok_abs = tcapi.close(ctx, A, B, 1e-4)
+# True
+```
+````
+
+#### `convert`
+
+C++:
+
+``` cpp
+template <typename Ten1T, typename Ten2T>
+void convert(
+    tcapi::context_handle_t<Ten1T> &ctx1,
+    const Ten1T &t1,
+    tcapi::context_handle_t<Ten2T> &ctx2,
+    Ten2T &t2
+);
+```
+
+Python:
+
+```python
+tcapi.convert(ctx1, t1, ctx2, Ten2)
+```
+
+Convert `t1` into a destination tensor, possibly changing the element type, the underlying TCF/backend, or both. Memory movement between `ctx1` (source TCF) and `ctx2` (destination TCF) is implementation-defined. In the C++ interface, the result is written into `t2`; on success, `t2` must be fully constructed and ready for use. In the Python interface, `Ten2` is the destination `TenKind`, and the returned value is a raw backend tensor associated with `ctx2`. If the source and destination have the same tensor type or tensor kind, this routine is equivalent to a deep copy.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+// CPU float -> CPU complex (promotion)
+auto A = tcapi::random<Ten>(
+  ctx_cpu, {4, 4}, gen
+);
+CplxTen Ac;
+tcapi::convert(ctx_cpu, A, ctx_cpu, Ac);
+
+// CPU float -> GPU float (device transfer)
+GPUTen Ag;
+tcapi::convert(ctx_cpu, A, ctx_gpu, Ag);
+```
+
+Python:
+
+```python
+# CPU float -> CPU complex (promotion)
+A = tcapi.random(ctx_cpu, Ten, (4, 4), gen)
+Ac = tcapi.convert(
+    ctx_cpu, A, ctx_cpu, CplxTen
+)
+
+# CPU float -> GPU float (device transfer)
+Ag = tcapi.convert(ctx_cpu, A, ctx_gpu, GPUTen)
+```
+````
+
+#### `version`
+
+C++:
+
+``` cpp
+template <typename TenT>
+std::string version();
+```
+
+Python:
+
+```python
+tcapi.version(Ten)
+```
+
+Return the TCAPI specification version implemented for the tensor type `TenT` in C++ or for the `TenKind` `Ten` in Python. The version string has the form `"M.m"`, where `M` is the major version and `m` is the minor version, both nonnegative integers.
+
+````{admonition} Example
+:class: example
+
+C++:
+
+```cpp
+auto version = tcapi::version<Ten>();
+// may equal "1.0"
+```
+
+Python:
+
+```python
+version = tcapi.version(Ten)
+# may equal "1.0"
+```
+````
+
+## Environment variables
+
+The final component of TCAPI is a set of environment variables that specify optional runtime behavior of TCAPI implementations. These variables provide a lightweight mechanism to enable diagnostics and performance-related reporting without modifying application code.
+
+### `TCAPI_VERBOSE`
+
+Control diagnostic output and optional performance reporting for TCAPI function calls. Similar in spirit to the verbose mode in Intel Math Kernel Library (MKL), a TCAPI implementation may emit implementation-defined messages whenever a TCAPI routine is invoked. Such messages may include the function name or signature, selected properties of the input tensors (e.g., order, shape, and element type), and, at higher verbosity levels, measured wall-clock execution time. The behavior of `TCAPI_VERBOSE` is defined as follows:
+
+- `TCAPI_VERBOSE = 0` (default): no diagnostic output is produced.
+- `TCAPI_VERBOSE = 1`: print a single-line message per TCAPI call containing the function name and salient input information; the exact format is implementation-defined.
+- `TCAPI_VERBOSE = 2`: in addition to the output at `TCAPI_VERBOSE = 1`, include the measured execution time of each call.

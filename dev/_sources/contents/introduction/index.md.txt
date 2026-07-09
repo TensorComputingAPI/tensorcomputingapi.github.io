@@ -1,0 +1,284 @@
+# Introduction
+
+## Design Goals
+
+TCAPI is designed around the following goals:
+
+1. **Portable tensor-network application development**  
+   Decouple tensor-network algorithms from the concrete tensor-computing frameworks that execute tensor operations, enabling applications to move across different hardware platforms and software back ends with little or no change to application code.
+
+2. **High performance with low abstraction overhead**  
+   Enable TCAPI-based applications to achieve performance comparable to implementations written directly against native framework APIs.
+
+3. **Lightweight yet expressive API**  
+   Provide a small, practical interface covering the essential tensor operations needed by tensor-network workloads, while leaving execution details to the underlying tensor-computing framework.
+
+4. **Shared semantics across languages**  
+   Define common tensor terminology and operation semantics across language specifications, currently C++ and Python, while allowing each language to use natural conventions.
+
+5. **Ease of adoption by existing frameworks**  
+   Make TCAPI straightforward to implement on top of existing frameworks without requiring modification of their source code.
+
+(get-started)=
+## Get Started
+
+This section walks through a minimal TCAPI workflow in both C++ and Python.
+The example generates a random six-qubit wavefunction, measures the bipartite entanglement entropy between the left and right halves of the system, and constructs a low-rank approximation of the state.
+The C++ interface uses a concrete tensor type, while the Python interface uses a runtime tensor-kind descriptor and returns backend-native tensor values.
+For the full API definition, see the {doc}`specification <../specification/index>`.
+
+The C++ examples assume that TCAPI has been implemented on top of a tensor-computing framework (TCF) that provides a concrete tensor type named `Ten` with element type `double`.
+The Python examples assume that `Ten` is an implementation-provided `TenKind` descriptor for backend tensors with a compatible floating-point element type.
+
+- **Include or import TCAPI**
+
+  Include the TCAPI header supplied by the TCF implementation, together with the standard-library headers used by the example:
+
+  C++:
+
+  ```cpp
+  #include "tcapi/tcapi.h"
+
+  #include <cmath>
+  #include <complex>
+  #include <random>
+  ```
+
+  Python:
+
+  ```python
+  import math
+  import random
+
+  import tcapi
+  ```
+
+  For C++, define aliases for the tensor type and element type.
+  The alias templates such as `tcapi::elem_t` extract TCF-dependent associated types from the tensor type; see {ref}`sec:type_system` for details.
+
+  ```cpp
+  using ten = Ten;
+  using elem = tcapi::elem_t<ten>;
+  ```
+
+  In the Python snippets below, `Ten` denotes an implementation-provided `TenKind` descriptor.
+  TCAPI functions return backend tensors directly rather than wrapping them in TCAPI-defined tensor classes.
+
+  To migrate the same application code to another TCF in C++, replace `Ten` with the tensor type provided by that framework.
+  In Python, replace `Ten` with the corresponding `TenKind`.
+  The remaining TCAPI calls can stay unchanged.
+
+- **Create a context**
+
+  Before calling tensor operations, create a TCAPI context.
+  The context manages resources associated with the underlying TCF, such as GPU devices, streams, library handles, or thread pools.
+
+  C++:
+
+  ```cpp
+  tcapi::context_handle_t<ten> ctx;
+  tcapi::create_context(ctx);
+  ```
+
+  Python:
+
+  ```python
+  ctx = tcapi.create_context(Ten)
+  ```
+
+- **Create a wavefunction**
+
+  Generate a random wavefunction for a chain of six qubits.
+  The resulting tensor has shape `{2, 2, 2, 2, 2, 2}` and order six.
+
+  C++:
+
+  ```cpp
+  std::mt19937 engine;
+  std::uniform_real_distribution<double> dis(-1.0, 1.0);
+
+  auto gen = [&dis, &engine]() {
+      return dis(engine);
+  };
+
+  auto psi = tcapi::random<ten>(
+      ctx, {2, 2, 2, 2, 2, 2}, gen);
+  ```
+
+  Python:
+
+  ```python
+  def gen():
+      return random.uniform(-1.0, 1.0)
+
+  psi = tcapi.random(ctx, Ten, (2, 2, 2, 2, 2, 2), gen)
+  ```
+
+  Normalize the wavefunction before measuring it:
+
+  C++:
+
+  ```cpp
+  tcapi::normalize(ctx, psi);
+  ```
+
+  Python:
+
+  ```python
+  psi, orig_norm = tcapi.normalize(ctx, psi)
+  ```
+
+  In Python, `tcapi.normalize` returns both the normalized tensor and the original Frobenius norm.
+
+- **Measure entanglement**
+
+  To compute the bipartite entanglement entropy (BEE) between the left and right halves of the chain, perform an SVD across the center bond.
+  The third argument, `3`, is `num_of_bds_as_row`; it groups the first three tensor bonds into the row index and the remaining three bonds into the column index.
+
+  C++:
+
+  ```cpp
+  ten u, sigma, vt;
+  tcapi::svd(ctx, psi, 3, u, sigma, vt);
+  ```
+
+  Python:
+
+  ```python
+  u, sigma, vt = tcapi.svd(ctx, psi, 3)
+  ```
+
+  The tensor `sigma` contains the singular values as a diagonal tensor.
+  Extract those values and compute the entropy:
+
+  C++:
+
+  ```cpp
+  ten sigma_vals;
+  tcapi::diag(ctx, sigma, sigma_vals);
+
+  elem ee = 0.0;
+  auto compute_ee = [&ee](const elem sigma_val) {
+      const auto prob = sigma_val * sigma_val;
+      ee -= prob * std::log(prob);
+  };
+
+  tcapi::for_each(ctx, sigma_vals, compute_ee);
+  ```
+
+  Python:
+
+  ```python
+  sigma_vals = tcapi.diag(ctx, sigma)
+
+  ee = {"value": 0.0}
+
+  def compute_ee(sigma_val):
+      prob = sigma_val * sigma_val
+      ee["value"] -= prob * math.log(prob)
+      return None
+
+  _ = tcapi.for_each(ctx, sigma_vals, compute_ee)
+  ```
+
+  After this loop, `ee` in C++ or `ee["value"]` in Python contains the BEE.
+  In Python, `tcapi.for_each` returns a backend tensor; returning `None` from the callback copies each visited value unchanged into that result.
+
+- **Truncate the state**
+
+  A low-entanglement approximation can be built by truncating the SVD.
+  This call keeps only the two largest singular values:
+
+  C++:
+
+  ```cpp
+  elem trunc_err = 0.0;
+  tcapi::trunc_svd(
+      ctx, psi, 3,
+      u, sigma, vt,
+      trunc_err, 2, 0.0);
+  ```
+
+  Python:
+
+  ```python
+  u, sigma, vt, trunc_err = tcapi.trunc_svd(
+      ctx, psi, 3, 2, 0.0)
+  ```
+
+  Reconstruct the approximate wavefunction by contracting `u`, `sigma`, and `vt`, then normalize the result:
+
+  C++:
+
+  ```cpp
+  ten psi1;
+  tcapi::contract(
+      ctx,
+      u, "ijkl", sigma, "lm", psi1, "ijkm");
+  tcapi::contract(
+      ctx,
+      psi1, "ijkl", vt, "lmno", psi1, "ijkmno");
+  tcapi::normalize(ctx, psi1);
+  ```
+
+  Python:
+
+  ```python
+  psi1 = tcapi.contract(
+      ctx,
+      u, "ijkl", sigma, "lm", "ijkm")
+  psi1 = tcapi.contract(
+      ctx,
+      psi1, "ijkl", vt, "lmno", "ijkmno")
+  psi1, psi1_norm = tcapi.normalize(ctx, psi1)
+  ```
+
+- **Check the fidelity**
+
+  Compute the overlap between the original state `psi` and the normalized approximation `psi1`.
+  Because all bonds are contracted, `ovlp` is a scalar, zeroth-order tensor with shape `{}`.
+
+  C++:
+
+  ```cpp
+  ten ovlp;
+  tcapi::contract(
+      ctx,
+      psi, "ijklmn", psi1, "ijklmn",
+      ovlp, "");
+
+  auto ovlp_v = tcapi::get_elem(ctx, ovlp, {});
+  auto fide = std::norm(ovlp_v);
+  ```
+
+  Python:
+
+  ```python
+  ovlp = tcapi.contract(
+      ctx,
+      psi, "ijklmn", psi1, "ijklmn",
+      "")
+
+  ovlp_v = tcapi.get_elem(ctx, ovlp, ())
+  fide = abs(ovlp_v) ** 2
+  ```
+
+  The fidelity `fide` should match `1.0 - trunc_err`.
+
+- **Destroy the context**
+
+  Release resources managed by the TCAPI context before leaving the program:
+
+  C++:
+
+  ```cpp
+  tcapi::destroy_context(ctx);
+  ```
+
+  Python:
+
+  ```python
+  tcapi.destroy_context(ctx)
+  ```
+
+  After the context has been destroyed, do not pass `ctx` to any TCAPI function unless it is initialized again.

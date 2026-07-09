@@ -1,0 +1,442 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Introduction &mdash; Tensor Computing Application Programming Interface (TCAPI) documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=697ec9f3" />
+
+  
+    <link rel="canonical" href="https://tensorcomputingapi.github.io/dev/contents/introduction/index.html" />
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=670ad4ce"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script data-switcher-json-url="../switcher.json" data-version-slug="dev" data-version="0.x" defer="defer" src="../../_static/version-switcher.js?v=b096fd83"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Specification" href="../specification/index.html" />
+    <link rel="prev" title="Tensor Computing Application Programming Interface (TCAPI)" href="../../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Tensor Computing Application Programming Interface (TCAPI)
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#design-goals">Design Goals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#get-started">Get Started</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../specification/index.html">Specification</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../specification/index.html#terminology">Terminology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#tensor">Tensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#tensor-operations">Tensor operations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#tensor-manipulation-operations">Tensor manipulation operations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#tensor-linear-algebra-operations">Tensor linear-algebra operations</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/index.html#type-system">Type system</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#c-type-system">C++ type system</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#tent"><code class="docutils literal notranslate"><span class="pre">TenT</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#tcapi-tensor-traits"><code class="docutils literal notranslate"><span class="pre">tcapi::tensor_traits</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#auxiliary-types">Auxiliary types</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#python-type-system">Python type system</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#auxiliary-types-and-values">Auxiliary types and values</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/index.html#core-functions">Core functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#read-only-queries">Read-only queries</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#order"><code class="docutils literal notranslate"><span class="pre">order</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#shape"><code class="docutils literal notranslate"><span class="pre">shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#size"><code class="docutils literal notranslate"><span class="pre">size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#size-bytes"><code class="docutils literal notranslate"><span class="pre">size_bytes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#get-elem"><code class="docutils literal notranslate"><span class="pre">get_elem</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#construction-and-destruction">Construction and destruction</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#allocate"><code class="docutils literal notranslate"><span class="pre">allocate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#zeros"><code class="docutils literal notranslate"><span class="pre">zeros</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#assign-from-range"><code class="docutils literal notranslate"><span class="pre">assign_from_range</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#random"><code class="docutils literal notranslate"><span class="pre">random</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#eye"><code class="docutils literal notranslate"><span class="pre">eye</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#fill"><code class="docutils literal notranslate"><span class="pre">fill</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#copy"><code class="docutils literal notranslate"><span class="pre">copy</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#move"><code class="docutils literal notranslate"><span class="pre">move</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#clear"><code class="docutils literal notranslate"><span class="pre">clear</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#input-and-output-i-o">Input and output (I/O)</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#load"><code class="docutils literal notranslate"><span class="pre">load</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#save"><code class="docutils literal notranslate"><span class="pre">save</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#sec-tensor-manipulation">Tensor manipulation operations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#set-elem"><code class="docutils literal notranslate"><span class="pre">set_elem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#reshape"><code class="docutils literal notranslate"><span class="pre">reshape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#transpose"><code class="docutils literal notranslate"><span class="pre">transpose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#cplx-conj"><code class="docutils literal notranslate"><span class="pre">cplx_conj</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#to-cplx"><code class="docutils literal notranslate"><span class="pre">to_cplx</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#real"><code class="docutils literal notranslate"><span class="pre">real</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#imag"><code class="docutils literal notranslate"><span class="pre">imag</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#expand"><code class="docutils literal notranslate"><span class="pre">expand</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#shrink"><code class="docutils literal notranslate"><span class="pre">shrink</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#extract-sub"><code class="docutils literal notranslate"><span class="pre">extract_sub</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#replace-sub"><code class="docutils literal notranslate"><span class="pre">replace_sub</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#concatenate"><code class="docutils literal notranslate"><span class="pre">concatenate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#stack"><code class="docutils literal notranslate"><span class="pre">stack</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#for-each"><code class="docutils literal notranslate"><span class="pre">for_each</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#for-each-with-coors"><code class="docutils literal notranslate"><span class="pre">for_each_with_coors</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#sec-tensor-linear-algebra">Tensor linear-algebra operations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#diag"><code class="docutils literal notranslate"><span class="pre">diag</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#norm"><code class="docutils literal notranslate"><span class="pre">norm</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#normalize"><code class="docutils literal notranslate"><span class="pre">normalize</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#scale"><code class="docutils literal notranslate"><span class="pre">scale</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#trace"><code class="docutils literal notranslate"><span class="pre">trace</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#exp"><code class="docutils literal notranslate"><span class="pre">exp</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#inverse"><code class="docutils literal notranslate"><span class="pre">inverse</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#contract"><code class="docutils literal notranslate"><span class="pre">contract</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#linear-combine"><code class="docutils literal notranslate"><span class="pre">linear_combine</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#svd"><code class="docutils literal notranslate"><span class="pre">svd</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#trunc-svd"><code class="docutils literal notranslate"><span class="pre">trunc_svd</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#qr"><code class="docutils literal notranslate"><span class="pre">qr</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#lq"><code class="docutils literal notranslate"><span class="pre">lq</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#eigvals"><code class="docutils literal notranslate"><span class="pre">eigvals</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#eigvalsh"><code class="docutils literal notranslate"><span class="pre">eigvalsh</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#eig"><code class="docutils literal notranslate"><span class="pre">eig</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#eigh"><code class="docutils literal notranslate"><span class="pre">eigh</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#miscellaneous-routines">Miscellaneous routines</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#create-context"><code class="docutils literal notranslate"><span class="pre">create_context</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#destroy-context"><code class="docutils literal notranslate"><span class="pre">destroy_context</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#to-range"><code class="docutils literal notranslate"><span class="pre">to_range</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#show"><code class="docutils literal notranslate"><span class="pre">show</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#close"><code class="docutils literal notranslate"><span class="pre">close</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#convert"><code class="docutils literal notranslate"><span class="pre">convert</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../specification/index.html#version"><code class="docutils literal notranslate"><span class="pre">version</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../specification/index.html#environment-variables">Environment variables</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../specification/index.html#tcapi-verbose"><code class="docutils literal notranslate"><span class="pre">TCAPI_VERBOSE</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Tensor Computing Application Programming Interface (TCAPI)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Introduction</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/contents/introduction/index.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="introduction">
+<h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h1>
+<section id="design-goals">
+<h2>Design Goals<a class="headerlink" href="#design-goals" title="Link to this heading"></a></h2>
+<p>TCAPI is designed around the following goals:</p>
+<ol class="arabic simple">
+<li><p><strong>Portable tensor-network application development</strong><br />
+Decouple tensor-network algorithms from the concrete tensor-computing frameworks that execute tensor operations, enabling applications to move across different hardware platforms and software back ends with little or no change to application code.</p></li>
+<li><p><strong>High performance with low abstraction overhead</strong><br />
+Enable TCAPI-based applications to achieve performance comparable to implementations written directly against native framework APIs.</p></li>
+<li><p><strong>Lightweight yet expressive API</strong><br />
+Provide a small, practical interface covering the essential tensor operations needed by tensor-network workloads, while leaving execution details to the underlying tensor-computing framework.</p></li>
+<li><p><strong>Shared semantics across languages</strong><br />
+Define common tensor terminology and operation semantics across language specifications, currently C++ and Python, while allowing each language to use natural conventions.</p></li>
+<li><p><strong>Ease of adoption by existing frameworks</strong><br />
+Make TCAPI straightforward to implement on top of existing frameworks without requiring modification of their source code.</p></li>
+</ol>
+</section>
+<section id="get-started">
+<span id="id1"></span><h2>Get Started<a class="headerlink" href="#get-started" title="Link to this heading"></a></h2>
+<p>This section walks through a minimal TCAPI workflow in both C++ and Python.
+The example generates a random six-qubit wavefunction, measures the bipartite entanglement entropy between the left and right halves of the system, and constructs a low-rank approximation of the state.
+The C++ interface uses a concrete tensor type, while the Python interface uses a runtime tensor-kind descriptor and returns backend-native tensor values.
+For the full API definition, see the <a class="reference internal" href="../specification/index.html"><span class="doc">specification</span></a>.</p>
+<p>The C++ examples assume that TCAPI has been implemented on top of a tensor-computing framework (TCF) that provides a concrete tensor type named <code class="docutils literal notranslate"><span class="pre">Ten</span></code> with element type <code class="docutils literal notranslate"><span class="pre">double</span></code>.
+The Python examples assume that <code class="docutils literal notranslate"><span class="pre">Ten</span></code> is an implementation-provided <code class="docutils literal notranslate"><span class="pre">TenKind</span></code> descriptor for backend tensors with a compatible floating-point element type.</p>
+<ul>
+<li><p><strong>Include or import TCAPI</strong></p>
+<p>Include the TCAPI header supplied by the TCF implementation, together with the standard-library headers used by the example:</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;tcapi/tcapi.h&quot;</span>
+
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cmath&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;complex&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;random&gt;</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">tcapi</span>
+</pre></div>
+</div>
+<p>For C++, define aliases for the tensor type and element type.
+The alias templates such as <code class="docutils literal notranslate"><span class="pre">tcapi::elem_t</span></code> extract TCF-dependent associated types from the tensor type; see <a class="reference internal" href="../specification/index.html#sec-type-system"><span class="std std-ref">Type system</span></a> for details.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">using</span><span class="w"> </span><span class="n">ten</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Ten</span><span class="p">;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">elem</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tcapi</span><span class="o">::</span><span class="n">elem_t</span><span class="o">&lt;</span><span class="n">ten</span><span class="o">&gt;</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>In the Python snippets below, <code class="docutils literal notranslate"><span class="pre">Ten</span></code> denotes an implementation-provided <code class="docutils literal notranslate"><span class="pre">TenKind</span></code> descriptor.
+TCAPI functions return backend tensors directly rather than wrapping them in TCAPI-defined tensor classes.</p>
+<p>To migrate the same application code to another TCF in C++, replace <code class="docutils literal notranslate"><span class="pre">Ten</span></code> with the tensor type provided by that framework.
+In Python, replace <code class="docutils literal notranslate"><span class="pre">Ten</span></code> with the corresponding <code class="docutils literal notranslate"><span class="pre">TenKind</span></code>.
+The remaining TCAPI calls can stay unchanged.</p>
+</li>
+<li><p><strong>Create a context</strong></p>
+<p>Before calling tensor operations, create a TCAPI context.
+The context manages resources associated with the underlying TCF, such as GPU devices, streams, library handles, or thread pools.</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">tcapi</span><span class="o">::</span><span class="n">context_handle_t</span><span class="o">&lt;</span><span class="n">ten</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ctx</span><span class="p">;</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">create_context</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ctx</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">create_context</span><span class="p">(</span><span class="n">Ten</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Create a wavefunction</strong></p>
+<p>Generate a random wavefunction for a chain of six qubits.
+The resulting tensor has shape <code class="docutils literal notranslate"><span class="pre">{2,</span> <span class="pre">2,</span> <span class="pre">2,</span> <span class="pre">2,</span> <span class="pre">2,</span> <span class="pre">2}</span></code> and order six.</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">mt19937</span><span class="w"> </span><span class="n">engine</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">uniform_real_distribution</span><span class="o">&lt;</span><span class="kt">double</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dis</span><span class="p">(</span><span class="mf">-1.0</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0</span><span class="p">);</span>
+
+<span class="k">auto</span><span class="w"> </span><span class="n">gen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="o">&amp;</span><span class="n">dis</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">engine</span><span class="p">]()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">dis</span><span class="p">(</span><span class="n">engine</span><span class="p">);</span>
+<span class="p">};</span>
+
+<span class="k">auto</span><span class="w"> </span><span class="n">psi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tcapi</span><span class="o">::</span><span class="n">random</span><span class="o">&lt;</span><span class="n">ten</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">},</span><span class="w"> </span><span class="n">gen</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">gen</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+
+<span class="n">psi</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">Ten</span><span class="p">,</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">gen</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Normalize the wavefunction before measuring it:</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">tcapi</span><span class="o">::</span><span class="n">normalize</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">psi</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">psi</span><span class="p">,</span> <span class="n">orig_norm</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">psi</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In Python, <code class="docutils literal notranslate"><span class="pre">tcapi.normalize</span></code> returns both the normalized tensor and the original Frobenius norm.</p>
+</li>
+<li><p><strong>Measure entanglement</strong></p>
+<p>To compute the bipartite entanglement entropy (BEE) between the left and right halves of the chain, perform an SVD across the center bond.
+The third argument, <code class="docutils literal notranslate"><span class="pre">3</span></code>, is <code class="docutils literal notranslate"><span class="pre">num_of_bds_as_row</span></code>; it groups the first three tensor bonds into the row index and the remaining three bonds into the column index.</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">ten</span><span class="w"> </span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="n">sigma</span><span class="p">,</span><span class="w"> </span><span class="n">vt</span><span class="p">;</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">svd</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">psi</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="n">sigma</span><span class="p">,</span><span class="w"> </span><span class="n">vt</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">u</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">vt</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">psi</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The tensor <code class="docutils literal notranslate"><span class="pre">sigma</span></code> contains the singular values as a diagonal tensor.
+Extract those values and compute the entropy:</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">ten</span><span class="w"> </span><span class="n">sigma_vals</span><span class="p">;</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">diag</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">sigma</span><span class="p">,</span><span class="w"> </span><span class="n">sigma_vals</span><span class="p">);</span>
+
+<span class="n">elem</span><span class="w"> </span><span class="n">ee</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0</span><span class="p">;</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">compute_ee</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="o">&amp;</span><span class="n">ee</span><span class="p">](</span><span class="k">const</span><span class="w"> </span><span class="n">elem</span><span class="w"> </span><span class="n">sigma_val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">prob</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sigma_val</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">sigma_val</span><span class="p">;</span>
+<span class="w">    </span><span class="n">ee</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">prob</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">log</span><span class="p">(</span><span class="n">prob</span><span class="p">);</span>
+<span class="p">};</span>
+
+<span class="n">tcapi</span><span class="o">::</span><span class="n">for_each</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">sigma_vals</span><span class="p">,</span><span class="w"> </span><span class="n">compute_ee</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sigma_vals</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+
+<span class="n">ee</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_ee</span><span class="p">(</span><span class="n">sigma_val</span><span class="p">):</span>
+    <span class="n">prob</span> <span class="o">=</span> <span class="n">sigma_val</span> <span class="o">*</span> <span class="n">sigma_val</span>
+    <span class="n">ee</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span> <span class="o">-=</span> <span class="n">prob</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">prob</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+<span class="n">_</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">for_each</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">sigma_vals</span><span class="p">,</span> <span class="n">compute_ee</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>After this loop, <code class="docutils literal notranslate"><span class="pre">ee</span></code> in C++ or <code class="docutils literal notranslate"><span class="pre">ee[&quot;value&quot;]</span></code> in Python contains the BEE.
+In Python, <code class="docutils literal notranslate"><span class="pre">tcapi.for_each</span></code> returns a backend tensor; returning <code class="docutils literal notranslate"><span class="pre">None</span></code> from the callback copies each visited value unchanged into that result.</p>
+</li>
+<li><p><strong>Truncate the state</strong></p>
+<p>A low-entanglement approximation can be built by truncating the SVD.
+This call keeps only the two largest singular values:</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">elem</span><span class="w"> </span><span class="n">trunc_err</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0</span><span class="p">;</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">trunc_svd</span><span class="p">(</span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">psi</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<span class="w">    </span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="n">sigma</span><span class="p">,</span><span class="w"> </span><span class="n">vt</span><span class="p">,</span>
+<span class="w">    </span><span class="n">trunc_err</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">u</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">vt</span><span class="p">,</span> <span class="n">trunc_err</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">trunc_svd</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">,</span> <span class="n">psi</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Reconstruct the approximate wavefunction by contracting <code class="docutils literal notranslate"><span class="pre">u</span></code>, <code class="docutils literal notranslate"><span class="pre">sigma</span></code>, and <code class="docutils literal notranslate"><span class="pre">vt</span></code>, then normalize the result:</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">ten</span><span class="w"> </span><span class="n">psi1</span><span class="p">;</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">contract</span><span class="p">(</span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">,</span>
+<span class="w">    </span><span class="n">u</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ijkl&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">sigma</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;lm&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">psi1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ijkm&quot;</span><span class="p">);</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">contract</span><span class="p">(</span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">,</span>
+<span class="w">    </span><span class="n">psi1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ijkl&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">vt</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;lmno&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">psi1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ijkmno&quot;</span><span class="p">);</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">normalize</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">psi1</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">psi1</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">contract</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">,</span>
+    <span class="n">u</span><span class="p">,</span> <span class="s2">&quot;ijkl&quot;</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="s2">&quot;lm&quot;</span><span class="p">,</span> <span class="s2">&quot;ijkm&quot;</span><span class="p">)</span>
+<span class="n">psi1</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">contract</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">,</span>
+    <span class="n">psi1</span><span class="p">,</span> <span class="s2">&quot;ijkl&quot;</span><span class="p">,</span> <span class="n">vt</span><span class="p">,</span> <span class="s2">&quot;lmno&quot;</span><span class="p">,</span> <span class="s2">&quot;ijkmno&quot;</span><span class="p">)</span>
+<span class="n">psi1</span><span class="p">,</span> <span class="n">psi1_norm</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">psi1</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check the fidelity</strong></p>
+<p>Compute the overlap between the original state <code class="docutils literal notranslate"><span class="pre">psi</span></code> and the normalized approximation <code class="docutils literal notranslate"><span class="pre">psi1</span></code>.
+Because all bonds are contracted, <code class="docutils literal notranslate"><span class="pre">ovlp</span></code> is a scalar, zeroth-order tensor with shape <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">ten</span><span class="w"> </span><span class="n">ovlp</span><span class="p">;</span>
+<span class="n">tcapi</span><span class="o">::</span><span class="n">contract</span><span class="p">(</span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">,</span>
+<span class="w">    </span><span class="n">psi</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ijklmn&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">psi1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ijklmn&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ovlp</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">);</span>
+
+<span class="k">auto</span><span class="w"> </span><span class="n">ovlp_v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tcapi</span><span class="o">::</span><span class="n">get_elem</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="n">ovlp</span><span class="p">,</span><span class="w"> </span><span class="p">{});</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">fide</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">norm</span><span class="p">(</span><span class="n">ovlp_v</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ovlp</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">contract</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">,</span>
+    <span class="n">psi</span><span class="p">,</span> <span class="s2">&quot;ijklmn&quot;</span><span class="p">,</span> <span class="n">psi1</span><span class="p">,</span> <span class="s2">&quot;ijklmn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+<span class="n">ovlp_v</span> <span class="o">=</span> <span class="n">tcapi</span><span class="o">.</span><span class="n">get_elem</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">ovlp</span><span class="p">,</span> <span class="p">())</span>
+<span class="n">fide</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">ovlp_v</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+</pre></div>
+</div>
+<p>The fidelity <code class="docutils literal notranslate"><span class="pre">fide</span></code> should match <code class="docutils literal notranslate"><span class="pre">1.0</span> <span class="pre">-</span> <span class="pre">trunc_err</span></code>.</p>
+</li>
+<li><p><strong>Destroy the context</strong></p>
+<p>Release resources managed by the TCAPI context before leaving the program:</p>
+<p>C++:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">tcapi</span><span class="o">::</span><span class="n">destroy_context</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tcapi</span><span class="o">.</span><span class="n">destroy_context</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>After the context has been destroyed, do not pass <code class="docutils literal notranslate"><span class="pre">ctx</span></code> to any TCAPI function unless it is initialized again.</p>
+</li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../../index.html" class="btn btn-neutral float-left" title="Tensor Computing Application Programming Interface (TCAPI)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../specification/index.html" class="btn btn-neutral float-right" title="Specification" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, TCAPI contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

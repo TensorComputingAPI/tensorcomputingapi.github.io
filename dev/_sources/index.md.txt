@@ -1,0 +1,39 @@
+# Tensor Computing Application Programming Interface (TCAPI)
+
+TCAPI is an open-source, lightweight, application-oriented interface for portable, high-performance tensor-network computations. By separating tensor-network algorithms from the tensor-computing frameworks that execute tensor computations, it allows tensor-network applications written in C++ or Python to target diverse hardware platforms and software back ends through a concise set of well-defined tensor operations. To begin, see the {ref}`Get Started <get-started>` section, then consult the {doc}`specification <contents/specification/index>` for detailed API semantics.
+
+## Maintainers
+
+- Rong-Yang Sun (sun-rongyang@outlook.com)
+- Hidehiko Kohshiro
+- Tomonori Shirakawa
+
+## Available Implementations
+
+### C++
+- [https://github.com/r-ccs-cms/tensor-computing-interface-backend-cytnx](https://github.com/r-ccs-cms/tensor-computing-interface-backend-cytnx) (backend: [Cytnx](https://github.com/Cytnx-dev/Cytnx))
+
+## Publication
+
+If you use TCAPI in research software or publications, please cite the following paper:
+
+> Rong-Yang Sun, Tomonori Shirakawa, Hidehiko Kohshiro, D. N. Sheng, and Seiji Yunoki, “Tensor Computing Application Programming Interface: An Application-Oriented, Lightweight API for Portable High-Performance Tensor Network Computations,” [arXiv:2512.23917](https://arxiv.org/abs/2512.23917) [quant-ph] (2025). https://doi.org/10.48550/arXiv.2512.23917
+
+## License
+
+The TCAPI specification, examples, and the source code of this website are licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+See the `LICENSE` file in the repository root for the full license text.
+
+## Acknowledgments
+
+The maintainers thank D. N. Sheng and Seiji Yunoki for their guidance and collaboration on the TCAPI paper, arXiv:2512.23917. They also acknowledge helpful discussions with Q. Zhao, C. Li, H. Xu, and S. Niu.
+
+<!-- ## Site Map -->
+```{toctree}
+:hidden:
+:maxdepth: 4
+
+contents/introduction/index.md
+contents/specification/index.md
+```
