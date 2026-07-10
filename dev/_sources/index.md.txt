@@ -23,8 +23,6 @@ If you use TCAPI in research software or publications, please cite the following
 
 The TCAPI specification, examples, and the source code of this website are licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
-See the `LICENSE` file in the repository root for the full license text.
-
 ## Acknowledgments
 
 The maintainers thank D. N. Sheng and Seiji Yunoki for their guidance and collaboration on the TCAPI paper, arXiv:2512.23917. They also acknowledge helpful discussions with Q. Zhao, C. Li, H. Xu, and S. Niu.
